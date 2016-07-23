@@ -580,14 +580,6 @@ getswitches(Switch *sw, int n)
 }
 
 void
-poweron(void)
-{
-	pthread_t apr_thread;
-	apr.sw_power = 1;
-	pthread_create(&apr_thread, NULL, aprmain, &apr);
-}
-
-void
 mouse(int button, int state, int x, int y)
 {
 	static int buttonstate;
@@ -681,6 +673,28 @@ wakepanel(void)
 	user_event.user.data1 = NULL;
 	user_event.user.data2 = NULL;
 	SDL_PushEvent(&user_event);
+}
+
+Emu *emu_init() {
+	Emu *emu = calloc(sizeof(Emu), 1);
+	if (!emu)
+		return NULL;
+
+	if (!(emu->apr = apr_init()))
+		return free(emu), NULL;
+	emu->apr->emu = emu;
+
+	if (!(emu->mem = mem_init()))
+		return free(mem->apr), free(emu), NULL;
+
+	inittty();
+
+	return emu;
+}
+
+void emu_destroy(Emu *emu) {
+	free(emu->apr);
+	free(emu);
 }
 
 int
@@ -817,10 +831,9 @@ error:
 	rim_maint_sw->r.x += extra_panel.x;
 	rim_maint_sw->r.y += extra_panel.y;
 
-	initmem();
-	inittty();
-	memset(&apr, 0xff, sizeof apr);
-	apr.extpulse = 0;
+	Emu *emu = emu_init();
+	if (!emu)
+		return 1;
 
 /*	int frm = 0;
 	time_t tm, tm2;

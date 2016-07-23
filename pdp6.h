@@ -2,11 +2,16 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <pthread.h>
 
 #define nelem(a) (sizeof(a)/sizeof(a[0]))
-#define nil NULL
 #define print printf
 #define fprint fprintf
+
+#define DEBUG_PRINT(emu, ...) printf(__VA_ARGS__)
+
+#define IO_MAX 128
+#define APR_MAX_PULSES 5
 
 typedef uint64_t word;
 typedef uint32_t hword;
@@ -25,6 +30,7 @@ enum Mask {
 };
 
 enum HalfwordBits {
+    /* CAUTION! These are enumerated from the now-offbeat left side */
 	H0  = 0400000, H1  = 0200000, H2  = 0100000,
 	H3  = 0040000, H4  = 0020000, H5  = 0010000,
 	H6  = 0004000, H7  = 0002000, H8  = 0001000,
@@ -34,6 +40,7 @@ enum HalfwordBits {
 };
 
 enum FullwordBits {
+    /* CAUTION! These are enumerated from the now-offbeat left side */
 	FCRY = 01000000000000,
 	F0  = 0400000000000, F1  = 0200000000000, F2  = 0100000000000,
 	F3  = 0040000000000, F4  = 0020000000000, F5  = 0010000000000,
@@ -90,125 +97,230 @@ enum Opcode {
 
 };
 
-enum {
-	MAXPULSE = 5
-};
-
-typedef struct Apr Apr;
-
+typedef struct _Tty Tty;
+typedef struct _Emu Emu;
+typedef struct _Apr Apr;
+typedef struct _Mem Mem;
 typedef void Pulse(Apr *apr);
-#define pulse(p) static void p(Apr *apr)
 
-struct Apr {
-	hword ir;
+/* PULSE HANDLING */
+
+#ifdef PY_TESTING
+/*
+ * Part of the python unit testing framework. This inserts a shim before each pulse invocation that calls
+ * py_pulse_begin_cb(const char*, Apr*) and py_pulse_end_cb(const char*, Apr*) before and after executing the pulse,
+ * respectively. The generated function names for a pulse instantiated with pulse(foobar) would be foobar_impl for the
+ * implementation of the pulse and foobar for the wrapper, doing the callbacks and calling the impl in turn.
+ */
+int py_pulse_begin_cb(const char *name, Apr *apr);
+void py_pulse_end_cb(const char *name, Apr *apr);
+
+#define pulse_decl(_PULSE_NAME) \
+    static void _PULSE_NAME(Apr *apr); \
+    static void _PULSE_NAME ## _impl(Apr *apr);
+
+#define pulse(_PULSE_NAME) \
+    static void _PULSE_NAME(Apr *apr) { \
+        if (!py_pulse_begin_cb(#_PULSE_NAME, apr))
+            _PULSE_NAME ## _impl(apr);
+        py_pulse_end_cb(#_PULSE_NAME, apr);
+    } \
+    static void _PULSE_NAME ## _impl(Apr *apr)
+
+#else /* !PY_TESTING */
+#define pulse(_PULSE_NAME) static void _PULSE_NAME(Apr *apr)
+#define pulse_decl(_PULSE_NAME) pulse(_PULSE_NAME)
+
+#endif /* PY_TESTING */
+
+/* CORE CPU STUFF */
+
+enum AprError {
+    APR_OK = 0;
+    APR_ERR_TOO_MANY_PULSES;
+}
+
+struct _Apr {
 	word mi;
 	word data;
+	hword ir;
 	hword pc;
 	hword ma;
 	hword mas;
 	word mb;
 	word ar;
 	word mq;
-	bool mq36;
 	u16 sc, fe;
 	u8 pr, rlr, rla;
-	bool run;
-	bool sw_addr_stop, sw_repeat, sw_mem_disable, sw_power;
-	bool sw_rim_maint;
+    u8 _pad1;
+	bool mq36:1;
+	bool run:1;
+	bool sw_addr_stop:1, sw_repeat:1, sw_mem_disable:1, sw_power:1;
+	bool sw_rim_maint:1;
 	/* keys */
-	bool key_start, key_readin;
-	bool key_mem_cont, key_inst_cont;
-	bool key_mem_stop, key_inst_stop;
-	bool key_io_reset, key_exec;
-	bool key_dep, key_dep_nxt;
-	bool key_ex, key_ex_nxt;
-	bool key_rd_off, key_rd_on;
-	bool key_pt_rd, key_pt_wr;
+	bool key_start:1, key_readin:1;
+	bool key_mem_cont:1, key_inst_cont:1;
+	bool key_mem_stop:1, key_inst_stop:1;
+	bool key_io_reset:1, key_exec:1;
+	bool key_dep:1, key_dep_nxt:1;
+	bool key_ex:1, key_ex_nxt:1;
+	bool key_rd_off:1, key_rd_on:1;
+	bool key_pt_rd:1, key_pt_wr:1;
 
 	/* PI */
 	u8 pio, pir, pih, pi_req;
-	bool pi_active;
-	bool pi_ov, pi_cyc;
+	bool pi_active:1;
+	bool pi_ov, pi_cyc:1;
 
 	/* flip-flops */
-	bool ex_mode_sync, ex_uuo_sync, ex_pi_sync, ex_ill_op, ex_user;
-	bool ar_pc_chg_flag, ar_ov_flag, ar_cry0_flag, ar_cry1_flag;
-	bool ar_cry0, ar_cry1, ar_com_cont;
-	bool ar_cry0_xor_cry1;
+	bool ex_mode_sync:1, ex_uuo_sync:1, ex_pi_sync:1, ex_ill_op:1, ex_user:1;
+	bool ar_pc_chg_flag:1, ar_ov_flag:1, ar_cry0_flag:1, ar_cry1_flag:1;
+	bool ar_cry0:1, ar_cry1:1, ar_com_cont:1;
+	bool ar_cry0_xor_cry1:1;
 
-	bool key_ex_st, key_ex_sync;
-	bool key_dep_st, key_dep_sync;
-	bool key_rd_wr, key_rim_sbr;
+	bool key_ex_st:1, key_ex_sync:1;
+	bool key_dep_st:1, key_dep_sync:1;
+	bool key_rd_wr:1, key_rim_sbr:1;
 
-	bool mc_rd, mc_wr, mc_rq, mc_stop, mc_stop_sync, mc_split_cyc_sync;
+	bool mc_rd:1, mc_wr:1, mc_rq:1, mc_stop:1, mc_stop_sync:1, mc_split_cyc_sync:1;
 
-	bool cpa_iot_user, cpa_illeg_op, cpa_non_exist_mem,
-	     cpa_clock_enable, cpa_clock_flag, cpa_pc_chg_enable, cpa_pdl_ov,
-	     cpa_arov_enable;
-	int cpa_pia;
+	bool cpa_iot_user:1, cpa_illeg_op:1, cpa_non_exist_mem:1,
+	     cpa_clock_enable:1, cpa_clock_flag:1;
+    /* one flag word full */
+	u32 cpa_pia;
+    bool cpa_pc_chg_enable:1, cpa_pdl_ov:1, cpa_arov_enable:1;
 
-	bool iot_go;
+	bool iot_go:1;
 
 	/* ?? */
-	bool a_long;
+	bool a_long:1;
 
 	/* sbr flip-flops */
-	bool if1a;
-	bool af0, af3, af3a;
-	bool f1a, f4a, f6a;
-	bool et4_ar_pse;
-	bool chf1, chf2, chf3, chf4, chf5, chf6, chf7;
-	bool lcf1, dcf1;
-	bool sf3, sf5a, sf7;
-	bool shf1;
-	bool mpf1, mpf2;
-	bool msf1;
-	bool dsf1, dsf2, dsf3, dsf4, dsf5, dsf6, dsf7, dsf8, dsf9;
-	bool fsf1;
-	bool fmf1, fmf2;
-	bool fdf1, fdf2;
-	bool faf1, faf2, faf3, faf4;
-	bool fpf1, fpf2;
-	bool nrf1, nrf2, nrf3;
-	bool iot_f0a;
-	bool blt_f0a, blt_f3a, blt_f5a;
-	bool uuo_f1;
+	bool if1a:1;
+	bool af0:1, af3:1, af3a:1;
+	bool f1a:1, f4a:1, f6a:1;
+	bool et4_ar_pse:1;
+	bool chf1:1, chf2:1, chf3:1, chf4:1, chf5:1, chf6:1, chf7:1;
+	bool lcf1:1, dcf1:1;
+	bool sf3:1, sf5a:1, sf7:1;
+	bool shf1:1;
+	bool mpf1:1, mpf2:1;
+	bool msf1:1;
+	bool fsf1:1;
+	bool fmf1:1, fmf2:1;
+    /* one flag word full */
+	bool dsf1:1, dsf2:1, dsf3:1, dsf4:1, dsf5:1, dsf6:1, dsf7:1, dsf8:1, dsf9:1;
+	bool fdf1:1, fdf2:1;
+	bool faf1:1, faf2:1, faf3:1, faf4:1;
+	bool fpf1:1, fpf2:1;
+	bool nrf1:1, nrf2:1, nrf3:1;
+	bool iot_f0a:1;
+	bool blt_f0a:1, blt_f3a:1, blt_f5a:1;
+	bool uuo_f1:1;
 
 	/* temporaries */
-	bool ex_inh_rel;
+	bool ex_inh_rel:1;
 
 	/* decoded instructions */
+	bool ir_fp:1;
+	bool ir_fwt:1;
+	bool fwt_00:1, fwt_01:1, fwt_10:1, fwt_11:1;
+    /* one flag word full */
 	int inst, io_inst;
-	bool ir_fp;
-	bool ir_fwt;
-	bool fwt_00, fwt_01, fwt_10, fwt_11;
-	bool shift_op, ir_md, ir_jp, ir_as;
-	bool ir_boole;
-	bool boole_as_00, boole_as_01, boole_as_10, boole_as_11;
-	int ir_boole_op;
-	bool ir_hwt;
-	bool hwt_00, hwt_01, hwt_10, hwt_11;
-	bool ir_acbm;
-	bool ex_ir_uuo, ir_iot, ir_jrst;
+	bool shift_op:1, ir_md:1, ir_jp:1, ir_as:1;
+	bool ir_boole:1;
+	bool boole_as_00:1, boole_as_01:1, boole_as_10:1, boole_as_11:1;
+	bool ir_hwt:1;
+	bool hwt_00:1, hwt_01:1, hwt_10:1, hwt_11:1;
+	bool ir_acbm:1;
+	bool ex_ir_uuo:1, ir_iot:1, ir_jrst:1;
 
-	bool fc_e_pse;
-	bool pc_set;
+	bool fc_e_pse:1;
+	bool pc_set:1;
+
+	bool ia_inh:1;	/* for emulation; this is asserted for some time */
+	u32 ir_boole_op;
 
 	/* needed for the emulation */
-	int extpulse;
-	bool ia_inh;	// this is asserted for some time
+	u32 extpulse;
 
-	Pulse *pulses1[MAXPULSE], *pulses2[MAXPULSE];
+	Pulse *pulses1[APR_MAX_PULSES], *pulses2[APR_MAX_PULSES];
 	Pulse **clist, **nlist;
-	int ncurpulses, nnextpulses;
-};
-extern Apr apr;
-void nextpulse(Apr *apr, Pulse *p);
-void *aprmain(void *p);
+	u32 ncurpulses, nnextpulses;
 
-void initmem(void);
-void dumpmem(void);
-void wakemem(void);
+    AprError emulation_error;
+    pthread_t thr;
+    Emu *emu;
+};
+
+void nextpulse(Apr *apr, Pulse *p);
+void apr_cycle(Emu *emu);
+void apr_poweron(Emu *emu);
+Apr *apr_init(void);
+
+/* MEMORY */
+
+struct _Mem {
+    word fmem[16]; /* "Fast memory", used as CPU registers. In the original, this were the first 16 (core) memory
+                      locations which usually would be replaced with transistor flip-flops. */
+    word membus0, membus1;
+    word *hold;
+    size_t size;
+    word memory[]; /* Main memory (core). Length == memsize */
+}
+
+void mem_dump(const Mem *mem, const char *filename);
+int mem_wake(Mem *mem);
+Mem * mem_init(size_t memsize, const char *memfile, const char *regfile);
+void mem_read(const char *fname, word *mem, word size);
+
+/* TELETYPES */
+
+enum TTYError {
+    TTY_NOT_STARTED = -1;
+    TTY_OK = 0;
+    TTY_ERR_SOCKET;
+    TTY_ERR_BIND;
+    TTY_ERR_ACCEPT;
+};
+
+struct _Tty{
+    Emu *emu;
+    pthread_t thr;
+    TTYError error_code;
+	int pia;
+	int fd;
+	uchar tto, tti;
+	bool tto_busy:1, tto_flag:1
+	bool tti_busy:1, tti_flag:1;
+};
+
+void tty_recalc_req(Tty *tty);
+void *tty_thread_handler(void *arg);
+Tty *tty_init(Emu *emu, int port);
+
+/* TEH EMULATOR */
+
+struct _Emu {
+    Apr *apr;
+    Mem *mem;
+    /* every entry is a function to wake up the device */
+    /* TODO: how to handle multiple APRs? */
+    void (*iobusmap[IO_MAX])(void);
+    /* current PI req for each device */
+    u8 ioreq[IO_MAX];
+    /* 0 is cable 1 & 2 (data); 1 is cable 3 & 4 (above bits) */
+    word iobus0, iobus1;
+}
+
+#define IOB_RESET(emu)       ((emu)->iobus1 & IOBUS_IOB_RESET)
+#define IOB_DATAO_CLEAR(emu) ((emu)->iobus1 & IOBUS_DATAO_CLEAR)
+#define IOB_DATAO_SET(emu)   ((emu)->iobus1 & IOBUS_DATAO_SET)
+#define IOB_CONO_CLEAR(emu)  ((emu)->iobus1 & IOBUS_CONO_CLEAR)
+#define IOB_CONO_SET(emu)    ((emu)->iobus1 & IOBUS_CONO_SET)
+#define IOB_STATUS(emu)      ((emu)->iobus1 & IOBUS_IOB_STATUS)
+#define IOB_DATAI(emu)       ((emu)->iobus1 & IOBUS_IOB_DATAI)
+
 // 7-2, 7-10
 enum {
 	MEMBUS_MA21         = 0000000000001,
@@ -269,28 +381,20 @@ enum {
 	IOBUS_PULSES = IOBUS_CONO_SET | IOBUS_CONO_CLEAR |
 	               IOBUS_DATAO_SET | IOBUS_DATAO_CLEAR
 };
-/* 0 is cable 1 & 2 (data); 1 is cable 3 & 4 (above bits) */
-extern word iobus0, iobus1;
 
-#define IOB_RESET       (iobus1 & IOBUS_IOB_RESET)
-#define IOB_DATAO_CLEAR (iobus1 & IOBUS_DATAO_CLEAR)
-#define IOB_DATAO_SET   (iobus1 & IOBUS_DATAO_SET)
-#define IOB_CONO_CLEAR  (iobus1 & IOBUS_CONO_CLEAR)
-#define IOB_CONO_SET    (iobus1 & IOBUS_CONO_SET)
-#define IOB_STATUS      (iobus1 & IOBUS_IOB_STATUS)
-#define IOB_DATAI       (iobus1 & IOBUS_IOB_DATAI)
-
-/* every entry is a function to wake up the device */
-/* TODO: how to handle multiple APRs? */
-extern void (*iobusmap[128])(void);
-/* current PI req for each device */
-extern u8 ioreq[128];
 void recalc_req(void);
 
 void inittty(void);
+
+Emu *emu_init(void);
+void emu_destroy(Emu *emu);
 
 //void wakepanel(void);
 
 // for debugging
 char *names[0700];
 char *ionames[010];
+
+/*
+ * TODO: Fix wake* logic: These functinos need to get their relevant arguments from *somewhere*.
+ */
