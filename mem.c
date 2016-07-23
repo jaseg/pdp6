@@ -55,12 +55,12 @@ void mem_dump(const Mem *mem, const char *filename) {
         return;
 
     for (size_t a = 0; a < sizeof(mem->fmem); a++)
-        fprint(f, "%02lo: %012lo\n", a, mem->fmem[a]);
+        fprintf(f, "%02lo: %012lo\n", a, mem->fmem[a]);
 
     for (size_t a = 0; a < mem->size; a++) {
         if (mem->memory[a]){
-            fprint(f, "%06lo: ", a);
-            fprint(f, "%012lo\n", mem->memory[a]);
+            fprintf(f, "%06lo: ", a);
+            fprintf(f, "%012lo\n", mem->memory[a]);
         }
     }
 

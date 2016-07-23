@@ -15,7 +15,7 @@ void trace(char *fmt, ...) {
     if (!dotrace)
         return;
     va_start(ap, fmt);
-    print("  ");
+    printf("  ");
     vfprintf(stdout, fmt, ap);
     va_end(ap);
 }
@@ -3672,7 +3672,7 @@ void testinst(Apr *apr) {
 //  for(inst = 0140; inst < 0141; inst++) {
         apr->ir = inst << 9 | 1 << 5;
         decode_ir(apr);
-        print("%06o %6s ", apr->ir, insnames[inst]);
+        printf("%06o %6s ", apr->ir, insnames[inst]);
 /*
         print("%s ", FAC_INH ? "FAC_INH" : "       ");
         print("%s ", FAC2 ? "FAC2" : "    ");
@@ -3680,11 +3680,11 @@ void testinst(Apr *apr) {
         print("%s ", FC_C_ACLT ? "FC_C_ACLT" : "         ");
         print("%s ", FC_E ? "FC_E" : "    ");
 */
-        print("%s ", fc_e_pse(apr) ? "FC_E_PSE" : "        ");
-        print("%s ", sc_e(apr) ? "SC_E" : "    ");
-        print("%s ", sac_inh(apr) ? "SAC_INH" : "       ");
-        print("%s ", sac2(apr) ? "SAC2" : "    ");
-        print("\n");
+        printf("%s ", fc_e_pse(apr) ? "FC_E_PSE" : "        ");
+        printf("%s ", sc_e(apr) ? "SC_E" : "    ");
+        printf("%s ", sac_inh(apr) ? "SAC_INH" : "       ");
+        printf("%s ", sac2(apr) ? "SAC2" : "    ");
+        printf("\n");
 // FC_E_PSE
 //print("FC_E_PSE: %d %d %d %d %d %d %d %d %d %d\n", apr->hwt_10 , apr->hwt_11 , apr->fwt_11 ,
 //                  IOT_BLK , apr->inst == EXCH , CH_DEP , CH_INC_OP ,

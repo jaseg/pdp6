@@ -844,7 +844,7 @@ error:
 				SDL_Quit();
 				return 0;
 			case SDL_USEREVENT:
-				print("user\n");
+				printf("user\n");
 				break;
 			}
 		setlights(apr->ir, ir_lght, 18);

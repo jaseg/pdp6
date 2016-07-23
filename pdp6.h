@@ -5,14 +5,11 @@
 #include <pthread.h>
 
 #define nelem(a) (sizeof(a)/sizeof(a[0]))
-#define print printf
-#define fprint fprintf
-
 #define debug_print(emu, ...) printf(__VA_ARGS__)
+#define boolex(_name) bool _name(Apr *apr)
 
 #define IO_MAX 128
 #define APR_MAX_PULSES 5
-#define boolex(_name) bool _name(Apr *apr)
 
 typedef uint64_t word;
 typedef uint32_t hword;
