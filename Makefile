@@ -1,13 +1,15 @@
-SRC=main.c apr.c mem.c tty.c
-# clang
-#CFLAGS= -Wno-shift-op-parentheses -Wno-logical-op-parentheses \
-#        -Wno-bitwise-op-parentheses
-CFLAGS=  -fno-diagnostics-show-caret \
-	`sdl-config --cflags` `pkg-config SDL_image --cflags`
 
-LIBS=	`sdl-config --libs` `pkg-config SDL_image --libs` -lpthread
+CFLAGS := -std=c11 -Wall -Wpedantic `sdl-config --cflags` `pkg-config SDL_image --cflags --libs` -lpthread
 
+all: pdp6 libpdp6.so
 
-pdp6: $(SRC) pdp6.h
-	$(CC) $(CFLAGS) $(SRC) $(LIBS) -o pdp6
+pdp6: sdl.c libpdp6.so
+	$(CC) $(CFLAGS) -L. -lpdp6 -o $@ $<
+
+libpdp6.so: emu.c apr.c mem.c tty.c
+	$(CC) -shared -fPIC $(CFLAGS) -o $@ $^
+
+.PHONY: clean
+clean:
+	rm -f pdp6 libpdp6.so
 

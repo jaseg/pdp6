@@ -8,10 +8,11 @@
 #define print printf
 #define fprint fprintf
 
-#define DEBUG_PRINT(emu, ...) printf(__VA_ARGS__)
+#define debug_print(emu, ...) printf(__VA_ARGS__)
 
 #define IO_MAX 128
 #define APR_MAX_PULSES 5
+#define boolex(_name) bool _name(Apr *apr)
 
 typedef uint64_t word;
 typedef uint32_t hword;
@@ -21,13 +22,12 @@ typedef uint8_t  u8;
 typedef unsigned char uchar;
 typedef uchar bool;
 
-enum Mask {
-	FW   = 0777777777777,
-	RT   = 0000000777777,
-	LT   = 0777777000000,
-	SGN  = 0400000000000,
-	RSGN = 0000000400000,
-};
+/* Bit masks */
+#define FW   0777777777777UL
+#define RT   0000000777777UL
+#define LT   0777777000000UL
+#define SGN  0400000000000UL
+#define RSGN 0000000400000UL
 
 enum HalfwordBits {
     /* CAUTION! These are enumerated from the now-offbeat left side */
@@ -39,22 +39,44 @@ enum HalfwordBits {
 	H15 = 0000004, H16 = 0000002, H17 = 0000001
 };
 
-enum FullwordBits {
-    /* CAUTION! These are enumerated from the now-offbeat left side */
-	FCRY = 01000000000000,
-	F0  = 0400000000000, F1  = 0200000000000, F2  = 0100000000000,
-	F3  = 0040000000000, F4  = 0020000000000, F5  = 0010000000000,
-	F6  = 0004000000000, F7  = 0002000000000, F8  = 0001000000000,
-	F9  = 0000400000000, F10 = 0000200000000, F11 = 0000100000000,
-	F12 = 0000040000000, F13 = 0000020000000, F14 = 0000010000000,
-	F15 = 0000004000000, F16 = 0000002000000, F17 = 0000001000000,
-	F18 = 0000000400000, F19 = 0000000200000, F20 = 0000000100000,
-	F21 = 0000000040000, F22 = 0000000020000, F23 = 0000000010000,
-	F24 = 0000000004000, F25 = 0000000002000, F26 = 0000000001000,
-	F27 = 0000000000400, F28 = 0000000000200, F29 = 0000000000100,
-	F30 = 0000000000040, F31 = 0000000000020, F32 = 0000000000010,
-	F33 = 0000000000004, F34 = 0000000000002, F35 = 0000000000001
-};
+/* CAUTION! These are enumerated from the now-offbeat left side */
+#define FCRY 01000000000000UL
+#define F0   0400000000000UL
+#define F1   0200000000000UL
+#define F2   0100000000000UL
+#define F3   0040000000000UL
+#define F4   0020000000000UL
+#define F5   0010000000000UL
+#define F6   0004000000000UL
+#define F7   0002000000000UL
+#define F8   0001000000000UL
+#define F9   0000400000000UL
+#define F10  0000200000000UL
+#define F11  0000100000000UL
+#define F12  0000040000000UL
+#define F13  0000020000000UL
+#define F14  0000010000000UL
+#define F15  0000004000000UL
+#define F16  0000002000000UL
+#define F17  0000001000000UL
+#define F18  0000000400000UL
+#define F19  0000000200000UL
+#define F20  0000000100000UL
+#define F21  0000000040000UL
+#define F22  0000000020000UL
+#define F23  0000000010000UL
+#define F24  0000000004000UL
+#define F25  0000000002000UL
+#define F26  0000000001000UL
+#define F27  0000000000400UL
+#define F28  0000000000200UL
+#define F29  0000000000100UL
+#define F30  0000000000040UL
+#define F31  0000000000020UL
+#define F32  0000000000010UL
+#define F33  0000000000004UL
+#define F34  0000000000002UL
+#define F35  0000000000001UL
 
 enum Opcode {
 	FSC    = 0132,
@@ -103,7 +125,9 @@ typedef struct _Apr Apr;
 typedef struct _Mem Mem;
 typedef void Pulse(Apr *apr);
 
-/* PULSE HANDLING */
+/*
+ * PULSE HANDLING
+ */
 
 #ifdef PY_TESTING
 /*
@@ -133,12 +157,14 @@ void py_pulse_end_cb(const char *name, Apr *apr);
 
 #endif /* PY_TESTING */
 
-/* CORE CPU STUFF */
+/*
+ * CORE CPU STUFF
+ */
 
-enum AprError {
-    APR_OK = 0;
-    APR_ERR_TOO_MANY_PULSES;
-}
+typedef enum {
+    APR_OK = 0,
+    APR_ERR_TOO_MANY_PULSES
+} AprError;
 
 struct _Apr {
 	word mi;
@@ -238,7 +264,6 @@ struct _Apr {
 	bool fc_e_pse:1;
 	bool pc_set:1;
 
-	bool ia_inh:1;	/* for emulation; this is asserted for some time */
 	u32 ir_boole_op;
 
 	/* needed for the emulation */
@@ -251,38 +276,71 @@ struct _Apr {
     AprError emulation_error;
     pthread_t thr;
     Emu *emu;
+
+	bool ia_inh:1;	/* this is asserted for some time */
+    int pulse_single_step:1;
 };
 
 void nextpulse(Apr *apr, Pulse *p);
 void apr_cycle(Emu *emu);
 void apr_poweron(Emu *emu);
-Apr *apr_init(void);
+Apr *apr_init(Emu *emu);
+void apr_recalc_req(Apr *apr);
+void apr_recalc_cpa_req(Apr *apr);
 
-/* MEMORY */
+
+/*
+ * MEMORY
+ */
 
 struct _Mem {
-    word fmem[16]; /* "Fast memory", used as CPU registers. In the original, this were the first 16 (core) memory
-                      locations which usually would be replaced with transistor flip-flops. */
+    /* 0 is cable 1 & 2 (above bits); 1 is cable 3 & 4 (data) */
     word membus0, membus1;
     word *hold;
     size_t size;
+    word fmem[16]; /* "Fast memory", used as CPU registers. In the original, this were the first 16 (core) memory
+                      locations which usually would be replaced with transistor flip-flops. */
     word memory[]; /* Main memory (core). Length == memsize */
-}
+};
 
 void mem_dump(const Mem *mem, const char *filename);
 int mem_wake(Mem *mem);
-Mem * mem_init(size_t memsize, const char *memfile, const char *regfile);
+Mem *mem_init(size_t memsize, const char *memfile, const char *regfile);
 void mem_read(const char *fname, word *mem, word size);
 
-/* TELETYPES */
+// 7-2, 7-10
+#define MEMBUS_MA21         0000000000001UL
+#define MEMBUS_WR_RQ        0000000000004UL
+#define MEMBUS_RD_RQ        0000000000010UL
+#define MEMBUS_MA_FMC_SEL0  0000001000000UL
+#define MEMBUS_MA_FMC_SEL1  0000002000000UL
+#define MEMBUS_MA35_0       0000004000000UL
+#define MEMBUS_MA35_1       0000010000000UL
+#define MEMBUS_MA21_0       0000020000000UL
+#define MEMBUS_MA21_1       0000040000000UL
+#define MEMBUS_MA20_0       0000100000000UL
+#define MEMBUS_MA20_1       0000200000000UL
+#define MEMBUS_MA19_0       0000400000000UL
+#define MEMBUS_MA19_1       0001000000000UL
+#define MEMBUS_MA18_0       0002000000000UL
+#define MEMBUS_MA18_1       0004000000000UL
+#define MEMBUS_RQ_CYC       0020000000000UL
+#define MEMBUS_WR_RS        0100000000000UL
+#define MEMBUS_MAI_RD_RS    0200000000000UL
+#define MEMBUS_MAI_ADDR_ACK 0400000000000UL
 
-enum TTYError {
-    TTY_NOT_STARTED = -1;
-    TTY_OK = 0;
-    TTY_ERR_SOCKET;
-    TTY_ERR_BIND;
-    TTY_ERR_ACCEPT;
-};
+
+/*
+ * TELETYPES
+ */
+
+typedef enum {
+    TTY_NOT_STARTED = -1,
+    TTY_OK = 0,
+    TTY_ERR_SOCKET,
+    TTY_ERR_BIND,
+    TTY_ERR_ACCEPT
+} TTYError;
 
 struct _Tty{
     Emu *emu;
@@ -290,8 +348,9 @@ struct _Tty{
     TTYError error_code;
 	int pia;
 	int fd;
+    int port;
 	uchar tto, tti;
-	bool tto_busy:1, tto_flag:1
+	bool tto_busy:1, tto_flag:1;
 	bool tti_busy:1, tti_flag:1;
 };
 
@@ -299,102 +358,74 @@ void tty_recalc_req(Tty *tty);
 void *tty_thread_handler(void *arg);
 Tty *tty_init(Emu *emu, int port);
 
-/* TEH EMULATOR */
+
+/*
+ * TEH EMULATOR
+ */
+
+typedef void Wakefunc(void *arg);
+typedef struct {
+    Wakefunc *func;
+    void *arg;
+} IoWake;
 
 struct _Emu {
     Apr *apr;
     Mem *mem;
     /* every entry is a function to wake up the device */
     /* TODO: how to handle multiple APRs? */
-    void (*iobusmap[IO_MAX])(void);
+    IoWake iobusmap[IO_MAX];
     /* current PI req for each device */
     u8 ioreq[IO_MAX];
     /* 0 is cable 1 & 2 (data); 1 is cable 3 & 4 (above bits) */
     word iobus0, iobus1;
-}
-
-#define IOB_RESET(emu)       ((emu)->iobus1 & IOBUS_IOB_RESET)
-#define IOB_DATAO_CLEAR(emu) ((emu)->iobus1 & IOBUS_DATAO_CLEAR)
-#define IOB_DATAO_SET(emu)   ((emu)->iobus1 & IOBUS_DATAO_SET)
-#define IOB_CONO_CLEAR(emu)  ((emu)->iobus1 & IOBUS_CONO_CLEAR)
-#define IOB_CONO_SET(emu)    ((emu)->iobus1 & IOBUS_CONO_SET)
-#define IOB_STATUS(emu)      ((emu)->iobus1 & IOBUS_IOB_STATUS)
-#define IOB_DATAI(emu)       ((emu)->iobus1 & IOBUS_IOB_DATAI)
-
-// 7-2, 7-10
-enum {
-	MEMBUS_MA21         = 0000000000001,
-	MEMBUS_WR_RQ        = 0000000000004,
-	MEMBUS_RD_RQ        = 0000000000010,
-	MEMBUS_MA_FMC_SEL0  = 0000001000000,
-	MEMBUS_MA_FMC_SEL1  = 0000002000000,
-	MEMBUS_MA35_0       = 0000004000000,
-	MEMBUS_MA35_1       = 0000010000000,
-	MEMBUS_MA21_0       = 0000020000000,
-	MEMBUS_MA21_1       = 0000040000000,
-	MEMBUS_MA20_0       = 0000100000000,
-	MEMBUS_MA20_1       = 0000200000000,
-	MEMBUS_MA19_0       = 0000400000000,
-	MEMBUS_MA19_1       = 0001000000000,
-	MEMBUS_MA18_0       = 0002000000000,
-	MEMBUS_MA18_1       = 0004000000000,
-	MEMBUS_RQ_CYC       = 0020000000000,
-	MEMBUS_WR_RS        = 0100000000000,
-	MEMBUS_MAI_RD_RS    = 0200000000000,
-	MEMBUS_MAI_ADDR_ACK = 0400000000000,
-};
-/* 0 is cable 1 & 2 (above bits); 1 is cable 3 & 4 (data) */
-extern word membus0, membus1;
-
-// 7-10
-enum {
-	IOBUS_PI_REQ_7    = F35,
-	IOBUS_PI_REQ_6    = F34,
-	IOBUS_PI_REQ_5    = F33,
-	IOBUS_PI_REQ_4    = F32,
-	IOBUS_PI_REQ_3    = F31,
-	IOBUS_PI_REQ_2    = F30,
-	IOBUS_PI_REQ_1    = F29,
-	IOBUS_IOB_STATUS  = F23,
-	IOBUS_IOB_DATAI   = F22,
-	IOBUS_CONO_SET    = F21,
-	IOBUS_CONO_CLEAR  = F20,
-	IOBUS_DATAO_SET   = F19,
-	IOBUS_DATAO_CLEAR = F18,
-	IOBUS_IOS9_1      = F17,
-	IOBUS_IOS9_0      = F16,
-	IOBUS_IOS8_1      = F15,
-	IOBUS_IOS8_0      = F14,
-	IOBUS_IOS7_1      = F13,
-	IOBUS_IOS7_0      = F12,
-	IOBUS_IOS6_1      = F11,
-	IOBUS_IOS6_0      = F10,
-	IOBUS_IOS5_1      = F9,
-	IOBUS_IOS5_0      = F8,
-	IOBUS_IOS4_1      = F7,
-	IOBUS_IOS4_0      = F6,
-	IOBUS_IOS3_1      = F5,
-	IOBUS_IOS3_0      = F4,
-	IOBUS_MC_DR_SPLIT = F3,
-	IOBUS_POWER_ON    = F1,
-	IOBUS_IOB_RESET   = F0,
-	IOBUS_PULSES = IOBUS_CONO_SET | IOBUS_CONO_CLEAR |
-	               IOBUS_DATAO_SET | IOBUS_DATAO_CLEAR
 };
 
-void recalc_req(void);
-
-void inittty(void);
-
-Emu *emu_init(void);
+Emu *emu_init(size_t memsize);
 void emu_destroy(Emu *emu);
 
-//void wakepanel(void);
+// 7-10
+#define IOBUS_PI_REQ_7      F35
+#define IOBUS_PI_REQ_6      F34
+#define IOBUS_PI_REQ_5      F33
+#define IOBUS_PI_REQ_4      F32
+#define IOBUS_PI_REQ_3      F31
+#define IOBUS_PI_REQ_2      F30
+#define IOBUS_PI_REQ_1      F29
+#define IOBUS_IOB_STATUS    F23
+#define IOBUS_IOB_DATAI     F22
+#define IOBUS_CONO_SET      F21
+#define IOBUS_CONO_CLEAR    F20
+#define IOBUS_DATAO_SET     F19
+#define IOBUS_DATAO_CLEAR   F18
+#define IOBUS_IOS9_1        F17
+#define IOBUS_IOS9_0        F16
+#define IOBUS_IOS8_1        F15
+#define IOBUS_IOS8_0        F14
+#define IOBUS_IOS7_1        F13
+#define IOBUS_IOS7_0        F12
+#define IOBUS_IOS6_1        F11
+#define IOBUS_IOS6_0        F10
+#define IOBUS_IOS5_1        F9
+#define IOBUS_IOS5_0        F8
+#define IOBUS_IOS4_1        F7
+#define IOBUS_IOS4_0        F6
+#define IOBUS_IOS3_1        F5
+#define IOBUS_IOS3_0        F4
+#define IOBUS_MC_DR_SPLIT   F3
+#define IOBUS_POWER_ON      F1
+#define IOBUS_IOB_RESET     F0
+#define IOBUS_PULSES        (IOBUS_CONO_SET | IOBUS_CONO_CLEAR | IOBUS_DATAO_SET | IOBUS_DATAO_CLEAR)
 
-// for debugging
-char *names[0700];
+bool iob_reset(Emu *emu);
+bool iob_datao_clear(Emu *emu);
+bool iob_datao_set(Emu *emu);
+bool iob_cono_clear(Emu *emu);
+bool iob_cono_set(Emu *emu);
+bool iob_status(Emu *emu);
+bool iob_datai(Emu *emu);
+
+/* Instruction name constants for pretty-printing */
+char *insnames[0700];
 char *ionames[010];
 
-/*
- * TODO: Fix wake* logic: These functinos need to get their relevant arguments from *somewhere*.
- */

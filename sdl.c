@@ -579,19 +579,18 @@ getswitches(Switch *sw, int n)
 	return w;
 }
 
-void
-mouse(int button, int state, int x, int y)
-{
+void mouse(Emu *emu, int button, int state, int x, int y) {
 	static int buttonstate;
+    Apr *apr = emu->apr;
 	int prevst;
 	int i;
 	SDL_Rect *r;
 
 	if(button){
 		if(state == 1)
-			buttonstate |= 1<<button-1;
+			buttonstate |= 1<<(button-1);
 		else
-			buttonstate &= ~(1<<button-1);
+			buttonstate &= ~(1<<(button-1));
 	}
 
 	for(i = 0; i < nelem(switches); i++){
@@ -617,12 +616,12 @@ mouse(int button, int state, int x, int y)
 				/* power */
 				if(&switches[i] == &rest_sw[3]){
 					if(prevst == 0)
-						poweron();
+						apr_poweron(emu);
 				}
 				/* rim maint */
 				if(&switches[i] == rim_maint_sw){
 					if(prevst == 0)
-						apr.key_rim_sbr = 1;
+						apr->key_rim_sbr = 1;
 				}
 			}
 		}
@@ -648,12 +647,12 @@ mouse(int button, int state, int x, int y)
 			case 3:	/* execute, reset */
 			case 4:	/* deposit */
 			case 5:	/* examine */
-				if(keys[i].state && apr.sw_power)
-					apr.extpulse |= 1;
+				if(keys[i].state && apr->sw_power)
+					apr->extpulse |= 1;
 				break;
 			case 2:	/* stop */
 				if(keys[i].state == 1)	// inst
-					apr.extpulse |= 2;
+					apr->extpulse |= 2;
 				break;
 			case 6:	/* on off reader */
 			case 7: /* punch */
@@ -675,28 +674,6 @@ wakepanel(void)
 	SDL_PushEvent(&user_event);
 }
 
-Emu *emu_init() {
-	Emu *emu = calloc(sizeof(Emu), 1);
-	if (!emu)
-		return NULL;
-
-	if (!(emu->apr = apr_init()))
-		return free(emu), NULL;
-	emu->apr->emu = emu;
-
-	if (!(emu->mem = mem_init()))
-		return free(mem->apr), free(emu), NULL;
-
-	inittty();
-
-	return emu;
-}
-
-void emu_destroy(Emu *emu) {
-	free(emu->apr);
-	free(emu);
-}
-
 int
 main()
 {
@@ -710,6 +687,11 @@ main()
 	int i;
 	Light *l;
 	Switch *sw;
+
+    Emu *emu = emu_init(0);
+	if (!emu)
+		return 1;
+    Apr *apr = emu->apr;
 
 //	void testinst(Apr*);
 //	testinst(&apr);
@@ -831,10 +813,6 @@ error:
 	rim_maint_sw->r.x += extra_panel.x;
 	rim_maint_sw->r.y += extra_panel.y;
 
-	Emu *emu = emu_init();
-	if (!emu)
-		return 1;
-
 /*	int frm = 0;
 	time_t tm, tm2;
 	tm = time(nil);*/
@@ -854,172 +832,170 @@ error:
 			switch(ev.type){
 			case SDL_MOUSEMOTION:
 				mmev = (SDL_MouseMotionEvent*)&ev;
-				mouse(0, mmev->state,
-				      mmev->x, mmev->y);
+				mouse(emu, 0, mmev->state, mmev->x, mmev->y);
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP:
 				mbev = (SDL_MouseButtonEvent*)&ev;
-				mouse(mbev->button, mbev->state,
-				      mbev->x, mbev->y);
+				mouse(emu, mbev->button, mbev->state, mbev->x, mbev->y);
 				break;
 			case SDL_QUIT:
-				dumpmem();
+				mem_dump(emu->mem, "dump.mem");
 				SDL_Quit();
 				return 0;
 			case SDL_USEREVENT:
 				print("user\n");
 				break;
 			}
-		setlights(apr.ir, ir_lght, 18);
-		setlights(apr.mi, mi_lght, 36);
-		setlights(apr.pc, pc_lght, 18);
-		setlights(apr.ma, ma_lght, 18);
-		setlights(apr.pih, pih_lght, 7);
-		setlights(apr.pio, pio_lght, 7);
-		setlights(apr.pir, pir_lght, 7);
-		rest_lght[4].state = apr.run;
-		rest_lght[5].state = apr.mc_stop;
-		rest_lght[6].state = apr.pi_active;
-		rest_lght[0].state = apr.sw_addr_stop   = rest_sw[0].state;
-		rest_lght[1].state = apr.sw_repeat      = rest_sw[1].state;
-		rest_lght[2].state = apr.sw_mem_disable = rest_sw[2].state;
-		rest_lght[3].state = apr.sw_power       = rest_sw[3].state;
-		apr.sw_rim_maint = rim_maint_sw->state;
-		apr.data = getswitches(data_sw, 36);
-		apr.mas = getswitches(ma_sw, 18);
-		apr.key_start     = keys[0].state == 1;
-		apr.key_readin    = keys[0].state == 2;
-		apr.key_inst_cont = keys[1].state == 1;
-		apr.key_mem_cont  = keys[1].state == 2;
-		apr.key_inst_stop = keys[2].state == 1;
-		apr.key_mem_stop  = keys[2].state == 2;
-		apr.key_io_reset  = keys[3].state == 1;
-		apr.key_exec      = keys[3].state == 2;
-		apr.key_dep       = keys[4].state == 1;
-		apr.key_dep_nxt   = keys[4].state == 2;
-		apr.key_ex        = keys[5].state == 1;
-		apr.key_ex_nxt    = keys[5].state == 2;
-		apr.key_rd_off    = keys[6].state == 1;
-		apr.key_rd_on     = keys[6].state == 2;
-		apr.key_pt_rd     = keys[7].state == 1;
-		apr.key_pt_wr     = keys[7].state == 2;
+		setlights(apr->ir, ir_lght, 18);
+		setlights(apr->mi, mi_lght, 36);
+		setlights(apr->pc, pc_lght, 18);
+		setlights(apr->ma, ma_lght, 18);
+		setlights(apr->pih, pih_lght, 7);
+		setlights(apr->pio, pio_lght, 7);
+		setlights(apr->pir, pir_lght, 7);
+		rest_lght[4].state = apr->run;
+		rest_lght[5].state = apr->mc_stop;
+		rest_lght[6].state = apr->pi_active;
+		rest_lght[0].state = apr->sw_addr_stop   = rest_sw[0].state;
+		rest_lght[1].state = apr->sw_repeat      = rest_sw[1].state;
+		rest_lght[2].state = apr->sw_mem_disable = rest_sw[2].state;
+		rest_lght[3].state = apr->sw_power       = rest_sw[3].state;
+		apr->sw_rim_maint = rim_maint_sw->state;
+		apr->data = getswitches(data_sw, 36);
+		apr->mas = getswitches(ma_sw, 18);
+		apr->key_start     = keys[0].state == 1;
+		apr->key_readin    = keys[0].state == 2;
+		apr->key_inst_cont = keys[1].state == 1;
+		apr->key_mem_cont  = keys[1].state == 2;
+		apr->key_inst_stop = keys[2].state == 1;
+		apr->key_mem_stop  = keys[2].state == 2;
+		apr->key_io_reset  = keys[3].state == 1;
+		apr->key_exec      = keys[3].state == 2;
+		apr->key_dep       = keys[4].state == 1;
+		apr->key_dep_nxt   = keys[4].state == 2;
+		apr->key_ex        = keys[5].state == 1;
+		apr->key_ex_nxt    = keys[5].state == 2;
+		apr->key_rd_off    = keys[6].state == 1;
+		apr->key_rd_on     = keys[6].state == 2;
+		apr->key_pt_rd     = keys[7].state == 1;
+		apr->key_pt_wr     = keys[7].state == 2;
 
-		setlights(apr.mb, mb_lght, 36);
-		setlights(apr.ar, ar_lght, 36);
-		setlights(apr.mq, mq_lght, 36);
-		setlights(apr.fe, fe_lght, 9);
-		setlights(apr.sc, sc_lght, 9);
-		ff_lght[0].state = apr.key_ex_st;
-		ff_lght[1].state = apr.key_ex_sync;
-		ff_lght[2].state = apr.key_dep_st;
-		ff_lght[3].state = apr.key_dep_sync;
-		ff_lght[4].state = apr.key_rd_wr;
-		ff_lght[5].state = apr.mc_rd;
-		ff_lght[6].state = apr.mc_wr;
-		ff_lght[7].state = apr.mc_rq;
+		setlights(apr->mb, mb_lght, 36);
+		setlights(apr->ar, ar_lght, 36);
+		setlights(apr->mq, mq_lght, 36);
+		setlights(apr->fe, fe_lght, 9);
+		setlights(apr->sc, sc_lght, 9);
+		ff_lght[ 0].state = apr->key_ex_st;
+		ff_lght[ 1].state = apr->key_ex_sync;
+		ff_lght[ 2].state = apr->key_dep_st;
+		ff_lght[ 3].state = apr->key_dep_sync;
+		ff_lght[ 4].state = apr->key_rd_wr;
+		ff_lght[ 5].state = apr->mc_rd;
+		ff_lght[ 6].state = apr->mc_wr;
+		ff_lght[ 7].state = apr->mc_rq;
 
-		ff_lght[8].state = apr.if1a;
-		ff_lght[9].state = apr.af0;
-		ff_lght[10].state = apr.af3;
-		ff_lght[11].state = apr.af3a;
-		ff_lght[12].state = apr.et4_ar_pse;
-		ff_lght[13].state = apr.f1a;
-		ff_lght[14].state = apr.f4a;
-		ff_lght[15].state = apr.f6a;
+		ff_lght[ 8].state = apr->if1a;
+		ff_lght[ 9].state = apr->af0;
+		ff_lght[10].state = apr->af3;
+		ff_lght[11].state = apr->af3a;
+		ff_lght[12].state = apr->et4_ar_pse;
+		ff_lght[13].state = apr->f1a;
+		ff_lght[14].state = apr->f4a;
+		ff_lght[15].state = apr->f6a;
 
-		ff_lght[16].state = apr.sf3;
-		ff_lght[17].state = apr.sf5a;
-		ff_lght[18].state = apr.sf7;
-		ff_lght[19].state = apr.ar_com_cont;
-		ff_lght[20].state = apr.blt_f0a;
-		ff_lght[21].state = apr.blt_f3a;
-		ff_lght[22].state = apr.blt_f5a;
-		ff_lght[23].state = apr.iot_f0a;
+		ff_lght[16].state = apr->sf3;
+		ff_lght[17].state = apr->sf5a;
+		ff_lght[18].state = apr->sf7;
+		ff_lght[19].state = apr->ar_com_cont;
+		ff_lght[20].state = apr->blt_f0a;
+		ff_lght[21].state = apr->blt_f3a;
+		ff_lght[22].state = apr->blt_f5a;
+		ff_lght[23].state = apr->iot_f0a;
 
-		ff_lght[24].state = apr.fpf1;
-		ff_lght[25].state = apr.fpf2;
-		ff_lght[26].state = apr.faf1;
-		ff_lght[27].state = apr.faf2;
-		ff_lght[28].state = apr.faf3;
-		ff_lght[29].state = apr.faf4;
-		ff_lght[30].state = apr.fmf1;
-		ff_lght[31].state = apr.fmf2;
+		ff_lght[24].state = apr->fpf1;
+		ff_lght[25].state = apr->fpf2;
+		ff_lght[26].state = apr->faf1;
+		ff_lght[27].state = apr->faf2;
+		ff_lght[28].state = apr->faf3;
+		ff_lght[29].state = apr->faf4;
+		ff_lght[30].state = apr->fmf1;
+		ff_lght[31].state = apr->fmf2;
 
-		ff_lght[32].state = apr.fdf1;
-		ff_lght[33].state = apr.fdf2;
-		ff_lght[34].state = apr.ir & H6 && apr.mq & F1 && !apr.nrf3;
-		ff_lght[35].state = apr.nrf1;
-		ff_lght[36].state = apr.nrf2;
-		ff_lght[37].state = apr.nrf3;
-		ff_lght[38].state = apr.fsf1;
-		ff_lght[39].state = apr.chf7;
+		ff_lght[32].state = apr->fdf1;
+		ff_lght[33].state = apr->fdf2;
+		ff_lght[34].state = (apr->ir & H6) && (apr->mq & F1) && !apr->nrf3;
+		ff_lght[35].state = apr->nrf1;
+		ff_lght[36].state = apr->nrf2;
+		ff_lght[37].state = apr->nrf3;
+		ff_lght[38].state = apr->fsf1;
+		ff_lght[39].state = apr->chf7;
 
-		ff_lght[40].state = apr.dsf1;
-		ff_lght[41].state = apr.dsf2;
-		ff_lght[42].state = apr.dsf3;
-		ff_lght[43].state = apr.dsf4;
-		ff_lght[44].state = apr.dsf5;
-		ff_lght[45].state = apr.dsf6;
-		ff_lght[46].state = apr.dsf7;
-		ff_lght[47].state = apr.dsf8;
+		ff_lght[40].state = apr->dsf1;
+		ff_lght[41].state = apr->dsf2;
+		ff_lght[42].state = apr->dsf3;
+		ff_lght[43].state = apr->dsf4;
+		ff_lght[44].state = apr->dsf5;
+		ff_lght[45].state = apr->dsf6;
+		ff_lght[46].state = apr->dsf7;
+		ff_lght[47].state = apr->dsf8;
 
-		ff_lght[48].state = apr.dsf9;
-		ff_lght[49].state = apr.msf1;
-		ff_lght[50].state = apr.mpf1;
-		ff_lght[51].state = apr.mpf2;
-		ff_lght[52].state = apr.mc_split_cyc_sync;
-		ff_lght[53].state = apr.mc_stop_sync;
-		ff_lght[54].state = apr.shf1;
-		ff_lght[55].state = apr.sc == 0777;
+		ff_lght[48].state = apr->dsf9;
+		ff_lght[49].state = apr->msf1;
+		ff_lght[50].state = apr->mpf1;
+		ff_lght[51].state = apr->mpf2;
+		ff_lght[52].state = apr->mc_split_cyc_sync;
+		ff_lght[53].state = apr->mc_stop_sync;
+		ff_lght[54].state = apr->shf1;
+		ff_lght[55].state = apr->sc == 0777;
 
-		ff_lght[56].state = apr.chf1;
-		ff_lght[57].state = apr.chf2;
-		ff_lght[58].state = apr.chf3;
-		ff_lght[59].state = apr.chf4;
-		ff_lght[60].state = apr.chf5;
-		ff_lght[61].state = apr.chf6;
-		ff_lght[62].state = apr.lcf1;
-		ff_lght[63].state = apr.dcf1;
+		ff_lght[56].state = apr->chf1;
+		ff_lght[57].state = apr->chf2;
+		ff_lght[58].state = apr->chf3;
+		ff_lght[59].state = apr->chf4;
+		ff_lght[60].state = apr->chf5;
+		ff_lght[61].state = apr->chf6;
+		ff_lght[62].state = apr->lcf1;
+		ff_lght[63].state = apr->dcf1;
 
-		ff_lght[64].state = apr.pi_ov;
-		ff_lght[65].state = apr.pi_cyc;
-		ff_lght[66].state = !!apr.pi_req;
-		ff_lght[67].state = apr.iot_go;
-		ff_lght[68].state = apr.a_long;
-		ff_lght[69].state = apr.ma == apr.mas;
-		ff_lght[70].state = apr.uuo_f1;
-		ff_lght[71].state = apr.cpa_pdl_ov;
+		ff_lght[64].state = apr->pi_ov;
+		ff_lght[65].state = apr->pi_cyc;
+		ff_lght[66].state = !!apr->pi_req;
+		ff_lght[67].state = apr->iot_go;
+		ff_lght[68].state = apr->a_long;
+		ff_lght[69].state = apr->ma == apr->mas;
+		ff_lght[70].state = apr->uuo_f1;
+		ff_lght[71].state = apr->cpa_pdl_ov;
 
-		ff_lght[72].state = !apr.ex_user;
-		ff_lght[73].state = apr.cpa_illeg_op;
-		ff_lght[74].state = apr.ex_ill_op;
-		ff_lght[75].state = apr.ex_uuo_sync;
-		ff_lght[76].state = apr.ex_pi_sync;
-		ff_lght[77].state = apr.mq36;
+		ff_lght[72].state = !apr->ex_user;
+		ff_lght[73].state = apr->cpa_illeg_op;
+		ff_lght[74].state = apr->ex_ill_op;
+		ff_lght[75].state = apr->ex_uuo_sync;
+		ff_lght[76].state = apr->ex_pi_sync;
+		ff_lght[77].state = apr->mq36;
 
-		ff_lght[78].state = apr.key_rim_sbr;
-		ff_lght[79].state = apr.ar_cry0_xor_cry1;
-		ff_lght[80].state = apr.ar_cry0;
-		ff_lght[81].state = apr.ar_cry1;
-		ff_lght[82].state = apr.ar_ov_flag;
-		ff_lght[83].state = apr.ar_cry0_flag;
-		ff_lght[84].state = apr.ar_cry1_flag;
-		ff_lght[85].state = apr.ar_pc_chg_flag;
+		ff_lght[78].state = apr->key_rim_sbr;
+		ff_lght[79].state = apr->ar_cry0_xor_cry1;
+		ff_lght[80].state = apr->ar_cry0;
+		ff_lght[81].state = apr->ar_cry1;
+		ff_lght[82].state = apr->ar_ov_flag;
+		ff_lght[83].state = apr->ar_cry0_flag;
+		ff_lght[84].state = apr->ar_cry1_flag;
+		ff_lght[85].state = apr->ar_pc_chg_flag;
 
-		ff_lght[86].state = apr.cpa_non_exist_mem;
-		ff_lght[87].state = apr.cpa_clock_enable;
-		ff_lght[88].state = apr.cpa_clock_flag;
-		ff_lght[89].state = apr.cpa_pc_chg_enable;
-		ff_lght[90].state = apr.cpa_arov_enable;
-		ff_lght[91].state = !!(apr.cpa_pia&4);
-		ff_lght[92].state = !!(apr.cpa_pia&2);
-		ff_lght[93].state = !!(apr.cpa_pia&1);
+		ff_lght[86].state = apr->cpa_non_exist_mem;
+		ff_lght[87].state = apr->cpa_clock_enable;
+		ff_lght[88].state = apr->cpa_clock_flag;
+		ff_lght[89].state = apr->cpa_pc_chg_enable;
+		ff_lght[90].state = apr->cpa_arov_enable;
+		ff_lght[91].state = !!(apr->cpa_pia&4);
+		ff_lght[92].state = !!(apr->cpa_pia&2);
+		ff_lght[93].state = !!(apr->cpa_pia&1);
 
-		setlights(membus0, membus_lght, 36);
-		setlights(apr.pr, pr_lght, 8);
-		setlights(apr.rlr, rlr_lght, 8);
-		setlights(apr.rla, rla_lght, 8);
+		setlights(emu->mem->membus0, membus_lght, 36);
+		setlights(apr->pr, pr_lght, 8);
+		setlights(apr->rlr, rlr_lght, 8);
+		setlights(apr->rla, rla_lght, 8);
 
 		SDL_BlitSurface(op_surf, NULL, screen, &op_panel);
 		SDL_BlitSurface(ind_surf, NULL, screen, &ind_panel);
@@ -1028,13 +1004,13 @@ error:
 			SDL_BlitSurface(keys[i].surfs[keys[i].state],
 			                NULL, screen, &keys[i].r);
 		for(i = 0; i < nelem(op_lights); i++)
-			SDL_BlitSurface(op_lights[i].surfs[op_lights[i].state && apr.sw_power],
+			SDL_BlitSurface(op_lights[i].surfs[op_lights[i].state && apr->sw_power],
 			                NULL, screen, &op_lights[i].r);
 		for(i = 0; i < nelem(ind_lights); i++)
-			SDL_BlitSurface(ind_lights[i].surfs[ind_lights[i].state && apr.sw_power],
+			SDL_BlitSurface(ind_lights[i].surfs[ind_lights[i].state && apr->sw_power],
 			                NULL, screen, &ind_lights[i].r);
 		for(i = 0; i < nelem(extra_lights); i++)
-			SDL_BlitSurface(extra_lights[i].surfs[extra_lights[i].state && apr.sw_power],
+			SDL_BlitSurface(extra_lights[i].surfs[extra_lights[i].state && apr->sw_power],
 			                NULL, screen, &extra_lights[i].r);
 		for(i = 0; i < nelem(switches); i++)
 			SDL_BlitSurface(switches[i].surfs[switches[i].state],
