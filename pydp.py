@@ -8,23 +8,25 @@ class c_bitfield_parent(c_uint32):
 	pass
 
 def c_bitfield(name, *bits):
+	letype = None
 	def fget(idx):
 		def fun(self):
-			return bool(super().value & (1<<idx))
+			return bool(super(letype, self).value & (1<<idx))
 		return fun
 	def fset(idx):
 		def fun(self, val):
-			super().value = (self.value & ~(1<<idx)) | (int(bool(val))<<idx);
+			super(letype, self).value = (self.value & ~(1<<idx)) | (int(bool(val))<<idx);
 		return fun
 	def getbits(self):
-		val = super().value
+		val = super(letype, self).value
 		return { bit: bool(val & (1<<idx)) for idx, bit in enumerate(bits) }
 	def setbits(self, vals):
 		for bit, val in vals:
 			setattr(self, bit, val)
-	cdict = {'bits': bits, 'value': property(getbits, setbits)}
+	cdict = {'bits': bits, 'value': property(getbits, setbits), 'ivalue': c_bitfield_parent.value}
 	cdict.update({ bit: property(fget(idx), fset(idx)) for idx, bit in enumerate(bits) })
-	return type(name, (c_bitfield_parent, ), cdict)
+	letype = type(name, (c_bitfield_parent, ), cdict)
+	return letype
 
 
 class Constants:
@@ -279,13 +281,15 @@ c_Apr._fields_ = [
 		'pulse_single_step')) ]
 
 for fieldname, ctype in c_Apr._fields_:
-	if isinstance(ctype, c_bitfield_parent):
+	if issubclass(ctype, c_bitfield_parent):
 		for bit in ctype.bits:
-			def fget(self):
-				return getattr(getattr(self, fieldname), bit)
-			def fset(self, val):
-				setattr(getattr(self, fieldname), bit, val)
-			c_Apr.__dict__[bit] = property(fget, fset)
+			def make_bitprop(fieldname, bit):
+				def fget(self):
+					return getattr(getattr(self, fieldname), bit)
+				def fset(self, val):
+					setattr(getattr(self, fieldname), bit, val)
+				return property(fget, fset)
+			setattr(c_Apr, bit, make_bitprop(fieldname, bit))
 
 class Emu:
 	def __init__(self, memsize=65536):

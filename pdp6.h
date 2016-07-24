@@ -137,19 +137,19 @@ int py_pulse_begin_cb(const char *name, Apr *apr);
 void py_pulse_end_cb(const char *name, Apr *apr);
 
 #define pulse_decl(_PULSE_NAME) \
-    static void _PULSE_NAME(Apr *apr); \
-    static void _PULSE_NAME ## _impl(Apr *apr);
+    void _PULSE_NAME(Apr *apr); \
+    void _PULSE_NAME ## _impl(Apr *apr);
 
 #define pulse(_PULSE_NAME) \
-    static void _PULSE_NAME(Apr *apr) { \
-        if (!py_pulse_begin_cb(#_PULSE_NAME, apr))
-            _PULSE_NAME ## _impl(apr);
-        py_pulse_end_cb(#_PULSE_NAME, apr);
+    void _PULSE_NAME(Apr *apr) { \
+        if (!py_pulse_begin_cb(#_PULSE_NAME, apr)) \
+            _PULSE_NAME ## _impl(apr); \
+        py_pulse_end_cb(#_PULSE_NAME, apr); \
     } \
-    static void _PULSE_NAME ## _impl(Apr *apr)
+    void _PULSE_NAME ## _impl(Apr *apr)
 
 #else /* !PY_TESTING */
-#define pulse(_PULSE_NAME) static void _PULSE_NAME(Apr *apr)
+#define pulse(_PULSE_NAME) void _PULSE_NAME(Apr *apr)
 #define pulse_decl(_PULSE_NAME) pulse(_PULSE_NAME)
 
 #endif /* PY_TESTING */
