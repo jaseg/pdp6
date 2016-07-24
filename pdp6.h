@@ -193,7 +193,7 @@ struct _Apr {
 	/* PI */
 	u8 pio, pir, pih, pi_req;
 	bool pi_active:1;
-	bool pi_ov, pi_cyc:1;
+	bool pi_ov:1, pi_cyc:1;
 
 	/* flip-flops */
 	bool ex_mode_sync:1, ex_uuo_sync:1, ex_pi_sync:1, ex_ill_op:1, ex_user:1;
@@ -208,10 +208,10 @@ struct _Apr {
 	bool mc_rd:1, mc_wr:1, mc_rq:1, mc_stop:1, mc_stop_sync:1, mc_split_cyc_sync:1;
 
 	bool cpa_iot_user:1, cpa_illeg_op:1, cpa_non_exist_mem:1,
-	     cpa_clock_enable:1, cpa_clock_flag:1;
+	     cpa_clock_enable:1;
     /* one flag word full */
 	u32 cpa_pia;
-    bool cpa_pc_chg_enable:1, cpa_pdl_ov:1, cpa_arov_enable:1;
+    bool cpa_clock_flag:1, cpa_pc_chg_enable:1, cpa_pdl_ov:1, cpa_arov_enable:1;
 
 	bool iot_go:1;
 
@@ -230,8 +230,9 @@ struct _Apr {
 	bool mpf1:1, mpf2:1;
 	bool msf1:1;
 	bool fsf1:1;
-	bool fmf1:1, fmf2:1;
+	bool fmf1:1;
     /* one flag word full */
+    bool fmf2:1;
 	bool dsf1:1, dsf2:1, dsf3:1, dsf4:1, dsf5:1, dsf6:1, dsf7:1, dsf8:1, dsf9:1;
 	bool fdf1:1, fdf2:1;
 	bool faf1:1, faf2:1, faf3:1, faf4:1;
@@ -247,9 +248,9 @@ struct _Apr {
 	/* decoded instructions */
 	bool ir_fp:1;
 	bool ir_fwt:1;
-	bool fwt_00:1, fwt_01:1, fwt_10:1, fwt_11:1;
-    /* one flag word full */
+    /* one flag word sorta full */
 	int inst, io_inst;
+	bool fwt_00:1, fwt_01:1, fwt_10:1, fwt_11:1;
 	bool shift_op:1, ir_md:1, ir_jp:1, ir_as:1;
 	bool ir_boole:1;
 	bool boole_as_00:1, boole_as_01:1, boole_as_10:1, boole_as_11:1;
