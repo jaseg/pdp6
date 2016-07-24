@@ -3511,7 +3511,7 @@ Apr *apr_init(Emu *emu) {
     if (!apr)
         return NULL;
 
-    memset(&apr, 0xff, sizeof(Apr));
+    memset(apr, 0xff, sizeof(Apr));
     apr->emu = emu;
 
     apr->extpulse = 0;

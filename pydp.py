@@ -1,7 +1,7 @@
 from ctypes import *
 from ctypes.util import *
 
-lib = CDLL(find_library('pdp6'))
+lib = CDLL('./libpdp6.so')
 
 
 class c_bitfield_parent(c_uint32):
@@ -50,7 +50,36 @@ class c_Mem(Structure):
 			('hold', POINTER(c_word)),
 			('size', c_size_t),
 			('fmem', c_word * 16),
-			('memory', POINTER(c_word)) ]
+			('_memory', c_word * 0) ]
+
+	@property
+	def memory(self):
+		return (c_word * self.size).from_address(addressof(self._memory))
+
+	@property
+	def mem_array(self):
+		return [ loc.value for loc in self.memory ]
+
+	@mem_array.setter
+	def mem_array_set(self, vals):
+		if len(vals) != self.size:
+			raise ValueError('Wrong length argument for memory set')
+		mem = self.memory
+		for i, val in enumerate(vals):
+			mem[i].value = val
+
+	@property
+	def fmem_array(self):
+		return [ word.value for word in self.fmem ]
+
+	@fmem_array.setter
+	def fmem_array_set(self, vals):
+		if len(val) != len(self.fmem):
+			raise ValueError('Wrong length argument for fmem')
+		fmem = self.fmem
+		for idx, val in enumerate(vals):
+			fmem[idx].value = val
+
 
 class c_IoWake(Structure):
 	_fields_ = [
@@ -259,8 +288,10 @@ for fieldname, ctype in c_Apr._fields_:
 			c_Apr.__dict__[bit] = property(fget, fset)
 
 class Emu:
-	def __init__(self, memsize):
-		self._emu = c_void_p(lib.emu_init(c_size_t(memsize)))
+	def __init__(self, memsize=65536):
+		rv = c_void_p(lib.emu_init(c_size_t(memsize)))
+		self._emu = cast(rv, POINTER(c_Emu)).contents
+		self._mem = self._emu.mem.contents
 	
 	def pulse(self, name):
 		getattr(lib, name)(self._emu.apr)
@@ -272,49 +303,53 @@ class Emu:
 
 	@property
 	def iobus0(self):
-		return self._emu.iobus0
+		return self._emu.iobus0.value
 
 	@iobus0.setter
 	def iobus0_set(self, val):
-		self._emu.iobus0 = val
+		self._emu.iobus0.value = val
 
 	@property
 	def iobus1(self):
-		return self._emu.iobus1
+		return self._emu.iobus1.value
 
 	@iobus1.setter
 	def iobus1_set(self, val):
-		self._emu.iobus1 = val
+		self._emu.iobus1.value = val
 
 	@property
 	def membus0(self):
-		return self._emu.membus0
+		return self._mem.membus0.value
 
 	@membus0.setter
 	def membus0_set(self, val):
-		self._emu._mem.membus0 = val
+		self._mem.membus0.value = val
 
 	@property
 	def membus1(self):
-		return self._emu.membus1
+		return self._mem.membus1.value
 
 	@membus1.setter
 	def membus1_set(self, val):
-		self._emu._mem.membus1 = val
-
+		self._mem.membus1.value = val
 
 	@property
-	def fmem(self):
-		return self._emu._mem.fmem
+	def mem_array(self):
+		return self._mem.mem_array
 
-	@fmem.setter
-	def fmem_set(self, val):
-		self._emu._mem.fmem = val
+	@mem_array.setter
+	def mem_array_set(self, vals):
+		self._mem.mem_array = vals
+
+	@property
+	def fmem_array(self):
+		return self._mem.fmem_array
+
+	@fmem_array.setter
+	def fmem_array_set(self, vals):
+		self._mem.fmem_array = vals
 
 	@property
 	def memory(self):
-		return self._emu._mem.memory
-	
-	@memory.setter
-	def memory_set(self, val):
-		self._emu._mem.memory = val
+		return self._mem.memory
+
