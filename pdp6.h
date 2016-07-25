@@ -280,6 +280,7 @@ struct _Apr {
 };
 
 void nextpulse(Apr *apr, Pulse *p);
+int  apr_dequeue_pulse(Apr *apr, Pulse *p);
 void apr_cycle(Emu *emu);
 void apr_poweron(Emu *emu);
 Apr *apr_init(Emu *emu);

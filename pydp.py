@@ -280,6 +280,59 @@ c_Apr._fields_ = [
 		'ia_inh',
 		'pulse_single_step')) ]
 
+# generated with sed -n "/^pulse(/{s/pulse(/    '/;s/).*\$/',/;p}" apr.c|sort
+# and :'<,'>Tabularize /,\zs
+pulses = [
+    'ar_ast0',         'ar_ast1',           'ar_ast2',            'ar_cry_comp',           'ar_flag_clr',
+    'ar_flag_set',     'ar_negate_t0',      'ar_pm1_t0',          'ar_pm1_t1',             'art3',
+    'at0',             'at1',               'at2',                'at3',                   'at3a',
+    'at4',             'at5',               'blt_t0',             'blt_t0a',               'blt_t1',
+    'blt_t2',          'blt_t3',            'blt_t3a',            'blt_t4',                'blt_t5',
+    'blt_t5a',         'blt_t6',            'cht1',               'cht2',                  'cht3',
+    'cht3a',           'cht4',              'cht4a',              'cht5',                  'cht6',
+    'cht7',            'cht8',              'cht8a',              'cht8b',                 'cht9',
+    'dct0',            'dct0a',             'dct1',               'dct2',                  'dct3',
+    'ds_clr',          'ds_div_t0',         'dst0',               'dst0a',                 'dst1',
+    'dst10',           'dst10a',            'dst10b',             'dst11',                 'dst11a',
+    'dst12',           'dst13',             'dst14',              'dst14a',                'dst14b',
+    'dst15',           'dst16',             'dst17',              'dst17a',                'dst18',
+    'dst19',           'dst19a',            'dst2',               'dst20',                 'dst21',
+    'dst21a',          'dst3',              'dst4',               'dst5',                  'dst5a',
+    'dst6',            'dst7',              'dst8',               'dst9',                  'et0',
+    'et0a',            'et1',               'et10',               'et3',                   'et4',
+    'et5',             'et6',               'et7',                'et8',                   'et9',
+    'ex_clr',          'ex_set',            'fat0',               'fat1',                  'fat10',
+    'fat1a',           'fat1b',             'fat2',               'fat3',                  'fat4',
+    'fat5',            'fat5a',             'fat6',               'fat7',                  'fat8',
+    'fat8a',           'fat9',              'fdt0',               'fdt0a',                 'fdt0b',
+    'fdt1',            'fmt0',              'fmt0a',              'fmt0b',                 'fpt0',
+    'fpt1',            'fpt1a',             'fpt1aa',             'fpt1b',                 'fpt2',
+    'fpt3',            'fpt4',              'fst0',               'fst0a',                 'fst1',
+    'ft0',             'ft1',               'ft1a',               'ft3',                   'ft4',
+    'ft4a',            'ft5',               'ft6',                'ft6a',                  'ft7',
+    'iat0',            'iot_t0',            'iot_t0a',            'iot_t2',                'iot_t3',
+    'iot_t3a',         'iot_t4',            'it0',                'it1',                   'it1a',
+    'key_go',          'key_manual',        'key_rd',             'key_rd_wr_ret',         'key_wr',
+    'kt0',             'kt0a',              'kt1',                'kt2',                   'kt3',
+    'kt4',             'lct0',              'lct0a',              'mai_addr_ack',          'mai_rd_rs',
+    'mc_addr_ack',     'mc_illeg_address',  'mc_non_exist_mem',   'mc_non_exist_mem_rst',  'mc_non_exist_rd',
+    'mc_rd_rq_pulse',  'mc_rdwr_rq_pulse',  'mc_rd_wr_rs_pulse',  'mc_rq_pulse',           'mc_rs_t0',
+    'mc_rs_t1',        'mc_split_rd_rq',    'mc_split_wr_rq',     'mc_stop_1',             'mc_wr_rq_pulse',
+    'mc_wr_rs',        'mp_clr',            'mpt0',               'mpt0a',                 'mpt1',
+    'mpt2',            'mr_clr',            'mr_pwr_clr',         'mr_start',              'mst1',
+    'mst2',            'mst3',              'mst3a',              'mst4',                  'mst5',
+    'mst6',            'nrt0',              'nrt0_5',             'nrt1',                  'nrt2',
+    'nrt3',            'nrt4',              'nrt5',               'nrt5a',                 'nrt6',
+    'pi_reset',        'pir_stb',           'pi_sync',            'sat0',                  'sat1',
+    'sat2',            'sat2_1',            'sat3',               'sct0',                  'sct1',
+    'sct2',            'sht0',              'sht1',               'sht1a',                 'st1',
+    'st2',             'st3',               'st3a',               'st5',                   'st5a',
+    'st6',             'st6a',              'st7',                'uuo_t1',                'uuo_t2',
+    'xct_t0' ]
+
+addr_for_pulse = { name: addressof(getattr(lib, name)) for name in pulses }
+pulse_for_addr = { addr: name for name, addr in addr_for_pulse }
+
 for fieldname, ctype in c_Apr._fields_:
 	if issubclass(ctype, c_bitfield_parent):
 		for bit in ctype.bits:
@@ -295,10 +348,31 @@ class Emu:
 	def __init__(self, memsize=65536):
 		rv = c_void_p(lib.emu_init(c_size_t(memsize)))
 		self._emu = cast(rv, POINTER(c_Emu)).contents
+		self._apr = self._emu.apr.contents
 		self._mem = self._emu.mem.contents
+
+	def __del__(self):
+		if self._emu:
+			lib.emu_destroy(self._emu)
 	
 	def pulse(self, name):
 		getattr(lib, name)(self._emu.apr)
+
+	def pulse_for_address(self, addr):
+		return pulse_for_addr[addr]
+
+	def address_for_pulse(self, pulse):
+		return addr_for_pulse[pulse]
+
+	@property
+	def nextpulses(self):
+		return [ pulse_for_addr[addressof(self._apr.nlist[i])] for i in range(self._apr.nnextpulses) ]
+
+	def apr_cycle(self):
+		lib.apr_cycle(self._emu.apr)
+	
+	def dequeue_pulse(self, name):
+		return lib.apr_dequeue_pulse(self._emu.apr, getattr(lib, name))
 
 	def wake(self, wid):
 		w = self._emu.iobusmap[wid]

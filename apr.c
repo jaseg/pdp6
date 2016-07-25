@@ -3381,6 +3381,17 @@ void nextpulse(Apr *apr, Pulse *p) {
         apr->nlist[apr->nnextpulses++] = p;
 }
 
+int apr_dequeue_pulse(Apr *apr, Pulse *p) {
+    size_t i=0, j=0;
+    for (; i < apr->nnextpulses; i++, j++) {
+        if (apr->nlist[i] == p)
+            j++;
+        if (i != j)
+            apr->nlist[i] = apr->nlist[j];
+    }
+    return j-i;
+}
+
 void apr_cycle(Emu *emu) {
     Apr *apr = emu->apr;
     Mem *mem = emu->mem;
