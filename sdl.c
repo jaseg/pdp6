@@ -583,7 +583,6 @@ void mouse(Emu *emu, int button, int state, int x, int y) {
 	static int buttonstate;
     Apr *apr = emu->apr;
 	int prevst;
-	int i;
 	SDL_Rect *r;
 
 	if(button){
@@ -593,7 +592,7 @@ void mouse(Emu *emu, int button, int state, int x, int y) {
 			buttonstate &= ~(1<<(button-1));
 	}
 
-	for(i = 0; i < nelem(switches); i++){
+	for(size_t i = 0; i < nelem(switches); i++){
 		r = &switches[i].r;
 		if(buttonstate == 0 ||
 		   x < r->x || x > r->x+r->w ||
@@ -627,7 +626,7 @@ void mouse(Emu *emu, int button, int state, int x, int y) {
 		}
 	}
 
-	for(i = 0; i < nelem(keys); i++){
+	for(size_t i = 0; i < nelem(keys); i++){
 		r = &keys[i].r;
 		if(buttonstate == 0 ||
 		   x < r->x || x > r->x+r->w ||
@@ -684,7 +683,6 @@ main()
 	SDL_Rect op_panel = { 0, 274, 1280, 210 };
 	SDL_Rect ind_panel = { 0, 64, 1280, 210 };
 	SDL_Rect extra_panel = { 0, 0, 1280, 210 };
-	int i;
 	Light *l;
 	Switch *sw;
 
@@ -790,23 +788,23 @@ error:
 	pr_lght     = l; l += 8;
 	rlr_lght    = l; l += 8;
 	rla_lght    = l;
-	for(i = 0; i < nelem(keys); i++){
+	for(size_t i = 0; i < nelem(keys); i++){
 		keys[i].r.x += op_panel.x;
 		keys[i].r.y += op_panel.y;
 	}
-	for(i = 0; i < nelem(op_lights); i++){
+	for(size_t i = 0; i < nelem(op_lights); i++){
 		op_lights[i].r.x += op_panel.x;
 		op_lights[i].r.y += op_panel.y;
 	}
-	for(i = 0; i < nelem(ind_lights); i++){
+	for(size_t i = 0; i < nelem(ind_lights); i++){
 		ind_lights[i].r.x += ind_panel.x;
 		ind_lights[i].r.y += ind_panel.y;
 	}
-	for(i = 0; i < nelem(extra_lights); i++){
+	for(size_t i = 0; i < nelem(extra_lights); i++){
 		extra_lights[i].r.x += extra_panel.x;
 		extra_lights[i].r.y += extra_panel.y;
 	}
-	for(i = 0; i < nelem(switches)-1; i++){
+	for(size_t i = 0; i < nelem(switches)-1; i++){
 		switches[i].r.x += op_panel.x;
 		switches[i].r.y += op_panel.y;
 	}
@@ -1000,19 +998,19 @@ error:
 		SDL_BlitSurface(op_surf, NULL, screen, &op_panel);
 		SDL_BlitSurface(ind_surf, NULL, screen, &ind_panel);
 		SDL_BlitSurface(extra_surf, NULL, screen, &extra_panel);
-		for(i = 0; i < nelem(keys); i++)
+		for(size_t i = 0; i < nelem(keys); i++)
 			SDL_BlitSurface(keys[i].surfs[keys[i].state],
 			                NULL, screen, &keys[i].r);
-		for(i = 0; i < nelem(op_lights); i++)
+		for(size_t i = 0; i < nelem(op_lights); i++)
 			SDL_BlitSurface(op_lights[i].surfs[op_lights[i].state && apr->sw_power],
 			                NULL, screen, &op_lights[i].r);
-		for(i = 0; i < nelem(ind_lights); i++)
+		for(size_t i = 0; i < nelem(ind_lights); i++)
 			SDL_BlitSurface(ind_lights[i].surfs[ind_lights[i].state && apr->sw_power],
 			                NULL, screen, &ind_lights[i].r);
-		for(i = 0; i < nelem(extra_lights); i++)
+		for(size_t i = 0; i < nelem(extra_lights); i++)
 			SDL_BlitSurface(extra_lights[i].surfs[extra_lights[i].state && apr->sw_power],
 			                NULL, screen, &extra_lights[i].r);
-		for(i = 0; i < nelem(switches); i++)
+		for(size_t i = 0; i < nelem(switches); i++)
 			SDL_BlitSurface(switches[i].surfs[switches[i].state],
 			                NULL, screen, &switches[i].r);
 		SDL_Flip(screen);

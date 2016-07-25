@@ -1,5 +1,5 @@
 
-CFLAGS := -g -std=c11 -Wall -Wpedantic `sdl-config --cflags` `pkg-config SDL_image --cflags --libs` -lpthread
+CFLAGS := -g -std=c11 -Wall -Wpedantic -Wextra `sdl-config --cflags` `pkg-config SDL_image --cflags --libs` -lpthread
 
 all: pdp6 libpdp6.so
 

@@ -1,13 +1,13 @@
 #include "pdp6.h"
 #include <ctype.h>
 
-void mem_read(const char *fname, word *mem, word size) {
+int mem_read(const char *fname, word *mem, size_t size) {
     FILE *f;
     char buf[100], *s;
-    hword a;
+    size_t a;
     word w;
     if (!(f = fopen(fname, "r")))
-        return;
+        return -1;
     a = 0;
     while ((s = fgets(buf, 100, f))){
         while (*s){
@@ -20,6 +20,10 @@ void mem_read(const char *fname, word *mem, word size) {
                     s++;
                 } else {
                     mem[a++] = w;
+                    if (a == size) {
+                        fclose(f);
+                        return -1;
+                    }
                 }
             } else {
                 s++;
@@ -27,6 +31,7 @@ void mem_read(const char *fname, word *mem, word size) {
         }
     }
     fclose(f);
+    return a;
 }
 
 Mem *mem_init(size_t memsize, const char *memfile, const char *regfile) {

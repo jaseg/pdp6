@@ -269,7 +269,7 @@ struct _Apr {
 
 	Pulse *pulses1[APR_MAX_PULSES], *pulses2[APR_MAX_PULSES];
 	Pulse **clist, **nlist;
-	u32 ncurpulses, nnextpulses;
+	size_t ncurpulses, nnextpulses;
 
     AprError emulation_error;
     pthread_t thr;
@@ -304,7 +304,7 @@ struct _Mem {
 void mem_dump(const Mem *mem, const char *filename);
 int mem_wake(Mem *mem);
 Mem *mem_init(size_t memsize, const char *memfile, const char *regfile);
-void mem_read(const char *fname, word *mem, word size);
+int mem_read(const char *fname, word *mem, size_t size);
 
 // 7-2, 7-10
 #define MEMBUS_MA21         0000000000001UL

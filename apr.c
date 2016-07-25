@@ -3436,7 +3436,7 @@ void apr_cycle(Emu *emu) {
     }
 
     if (emu->iobus1 & IOBUS_IOB_RESET) {
-        for(int d = 0; d < nelem(emu->iobusmap); d++) {
+        for(size_t d = 0; d < nelem(emu->iobusmap); d++) {
             IoWake *wake = &emu->iobusmap[d];
             if (wake->func)
                 wake->func(wake->arg);
