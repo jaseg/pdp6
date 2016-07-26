@@ -17,6 +17,7 @@ Emu *emu_init(size_t memsize) {
 
 void emu_destroy(Emu *emu) {
 	free(emu->apr);
+	free(emu->mem);
 	free(emu);
 }
 

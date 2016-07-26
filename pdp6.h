@@ -85,7 +85,7 @@ enum Opcode {
 	DPC    = 0137,
 	ASH    = 0240,
 	ROT    = 0241,
-        LSH    = 0242,
+    LSH    = 0242,
 	ASHC   = 0244,
 	ROTC   = 0245,
 	LSHC   = 0246,
@@ -176,92 +176,114 @@ struct _Apr {
 	u16 sc, fe;
 	u8 pr, rlr, rla;
     u8 _pad1;
-	bool mq36:1;
-	bool run:1;
-	bool sw_addr_stop:1, sw_repeat:1, sw_mem_disable:1, sw_power:1;
-	bool sw_rim_maint:1;
-	/* keys */
-	bool key_start:1, key_readin:1;
-	bool key_mem_cont:1, key_inst_cont:1;
-	bool key_mem_stop:1, key_inst_stop:1;
-	bool key_io_reset:1, key_exec:1;
-	bool key_dep:1, key_dep_nxt:1;
-	bool key_ex:1, key_ex_nxt:1;
-	bool key_rd_off:1, key_rd_on:1;
-	bool key_pt_rd:1, key_pt_wr:1;
+    union {
+        u32 _flags1;
+        struct {
+            bool mq36:1;
+            bool run:1;
+            bool sw_addr_stop:1, sw_repeat:1, sw_mem_disable:1, sw_power:1;
+            bool sw_rim_maint:1;
+            /* keys */
+            bool key_start:1, key_readin:1;
+            bool key_mem_cont:1, key_inst_cont:1;
+            bool key_mem_stop:1, key_inst_stop:1;
+            bool key_io_reset:1, key_exec:1;
+            bool key_dep:1, key_dep_nxt:1;
+            bool key_ex:1, key_ex_nxt:1;
+            bool key_rd_off:1, key_rd_on:1;
+            bool key_pt_rd:1, key_pt_wr:1;
+        };
+    };
 
 	/* PI */
 	u8 pio, pir, pih, pi_req;
-	bool pi_active:1;
-	bool pi_ov:1, pi_cyc:1;
+    union {
+        u32 _flags2;
+        struct {
+            bool pi_active:1;
+            bool pi_ov:1, pi_cyc:1;
 
-	/* flip-flops */
-	bool ex_mode_sync:1, ex_uuo_sync:1, ex_pi_sync:1, ex_ill_op:1, ex_user:1;
-	bool ar_pc_chg_flag:1, ar_ov_flag:1, ar_cry0_flag:1, ar_cry1_flag:1;
-	bool ar_cry0:1, ar_cry1:1, ar_com_cont:1;
-	bool ar_cry0_xor_cry1:1;
+            /* flip-flops */
+            bool ex_mode_sync:1, ex_uuo_sync:1, ex_pi_sync:1, ex_ill_op:1, ex_user:1;
+            bool ar_pc_chg_flag:1, ar_ov_flag:1, ar_cry0_flag:1, ar_cry1_flag:1;
+            bool ar_cry0:1, ar_cry1:1, ar_com_cont:1;
+            bool ar_cry0_xor_cry1:1;
 
-	bool key_ex_st:1, key_ex_sync:1;
-	bool key_dep_st:1, key_dep_sync:1;
-	bool key_rd_wr:1, key_rim_sbr:1;
+            bool key_ex_st:1, key_ex_sync:1;
+            bool key_dep_st:1, key_dep_sync:1;
+            bool key_rd_wr:1, key_rim_sbr:1;
 
-	bool mc_rd:1, mc_wr:1, mc_rq:1, mc_stop:1, mc_stop_sync:1, mc_split_cyc_sync:1;
+            bool mc_rd:1, mc_wr:1, mc_rq:1, mc_stop:1, mc_stop_sync:1, mc_split_cyc_sync:1;
 
-	bool cpa_iot_user:1, cpa_illeg_op:1, cpa_non_exist_mem:1,
-	     cpa_clock_enable:1;
-    /* one flag word full */
+            bool cpa_iot_user:1, cpa_illeg_op:1, cpa_non_exist_mem:1,
+                 cpa_clock_enable:1;
+        };
+    };
 	u32 cpa_pia;
-    bool cpa_clock_flag:1, cpa_pc_chg_enable:1, cpa_pdl_ov:1, cpa_arov_enable:1;
+    union {
+        u32 _flags3;
+        struct {
+            bool cpa_clock_flag:1, cpa_pc_chg_enable:1, cpa_pdl_ov:1, cpa_arov_enable:1;
 
-	bool iot_go:1;
+            bool iot_go:1;
 
-	/* ?? */
-	bool a_long:1;
+            /* ?? */
+            bool a_long:1;
 
-	/* sbr flip-flops */
-	bool if1a:1;
-	bool af0:1, af3:1, af3a:1;
-	bool f1a:1, f4a:1, f6a:1;
-	bool et4_ar_pse:1;
-	bool chf1:1, chf2:1, chf3:1, chf4:1, chf5:1, chf6:1, chf7:1;
-	bool lcf1:1, dcf1:1;
-	bool sf3:1, sf5a:1, sf7:1;
-	bool shf1:1;
-	bool mpf1:1, mpf2:1;
-	bool msf1:1;
-	bool fsf1:1;
-	bool fmf1:1;
-    /* one flag word full */
-    bool fmf2:1;
-	bool dsf1:1, dsf2:1, dsf3:1, dsf4:1, dsf5:1, dsf6:1, dsf7:1, dsf8:1, dsf9:1;
-	bool fdf1:1, fdf2:1;
-	bool faf1:1, faf2:1, faf3:1, faf4:1;
-	bool fpf1:1, fpf2:1;
-	bool nrf1:1, nrf2:1, nrf3:1;
-	bool iot_f0a:1;
-	bool blt_f0a:1, blt_f3a:1, blt_f5a:1;
-	bool uuo_f1:1;
+            /* sbr flip-flops */
+            bool if1a:1;
+            bool af0:1, af3:1, af3a:1;
+            bool f1a:1, f4a:1, f6a:1;
+            bool et4_ar_pse:1;
+            bool chf1:1, chf2:1, chf3:1, chf4:1, chf5:1, chf6:1, chf7:1;
+            bool lcf1:1, dcf1:1;
+            bool sf3:1, sf5a:1, sf7:1;
+            bool shf1:1;
+            bool mpf1:1, mpf2:1;
+            bool msf1:1;
+            bool fsf1:1;
+            bool fmf1:1;
+        };
+    };
+    union {
+        u32 _flags4;
+        struct {
+            bool fmf2:1;
+            bool dsf1:1, dsf2:1, dsf3:1, dsf4:1, dsf5:1, dsf6:1, dsf7:1, dsf8:1, dsf9:1;
+            bool fdf1:1, fdf2:1;
+            bool faf1:1, faf2:1, faf3:1, faf4:1;
+            bool fpf1:1, fpf2:1;
+            bool nrf1:1, nrf2:1, nrf3:1;
+            bool iot_f0a:1;
+            bool blt_f0a:1, blt_f3a:1, blt_f5a:1;
+            bool uuo_f1:1;
 
-	/* temporaries */
-	bool ex_inh_rel:1;
+            /* temporaries */
+            bool ex_inh_rel:1;
 
-	/* decoded instructions */
-	bool ir_fp:1;
-	bool ir_fwt:1;
+            /* decoded instructions */
+            bool ir_fp:1;
+            bool ir_fwt:1;
+        };
+    };
     /* one flag word sorta full */
 	int inst, io_inst;
-	bool fwt_00:1, fwt_01:1, fwt_10:1, fwt_11:1;
-	bool shift_op:1, ir_md:1, ir_jp:1, ir_as:1;
-	bool ir_boole:1;
-	bool boole_as_00:1, boole_as_01:1, boole_as_10:1, boole_as_11:1;
-	bool ir_hwt:1;
-	bool hwt_00:1, hwt_01:1, hwt_10:1, hwt_11:1;
-	bool ir_acbm:1;
-	bool ex_ir_uuo:1, ir_iot:1, ir_jrst:1;
+    union {
+        u32 _flags5;
+        struct {
+            bool fwt_00:1, fwt_01:1, fwt_10:1, fwt_11:1;
+            bool shift_op:1, ir_md:1, ir_jp:1, ir_as:1;
+            bool ir_boole:1;
+            bool boole_as_00:1, boole_as_01:1, boole_as_10:1, boole_as_11:1;
+            bool ir_hwt:1;
+            bool hwt_00:1, hwt_01:1, hwt_10:1, hwt_11:1;
+            bool ir_acbm:1;
+            bool ex_ir_uuo:1, ir_iot:1, ir_jrst:1;
 
-	bool fc_e_pse:1;
-	bool pc_set:1;
-
+            bool fc_e_pse:1;
+            bool pc_set:1;
+        };
+    };
 	u32 ir_boole_op;
 
 	/* needed for the emulation */
@@ -275,12 +297,18 @@ struct _Apr {
     pthread_t thr;
     Emu *emu;
 
-	bool ia_inh:1;	/* this is asserted for some time */
-    int pulse_single_step:1;
+    union {
+        u32 _flags6;
+        struct {
+            bool ia_inh:1;	/* this is asserted for some time */
+            int pulse_single_step:1;
+        };
+    };
 };
 
 void nextpulse(Apr *apr, Pulse *p);
 int  apr_dequeue_pulse(Apr *apr, Pulse *p);
+void apr_clear_pulses(Apr *apr);
 void apr_cycle(Emu *emu);
 void apr_poweron(Emu *emu);
 Apr *apr_init(Emu *emu);

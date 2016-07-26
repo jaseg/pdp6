@@ -1,5 +1,8 @@
+#!/usr/bin/env python3
+
 from ctypes import *
 from ctypes.util import *
+from enum import Enum
 
 lib = CDLL('./libpdp6.so')
 
@@ -112,7 +115,7 @@ c_Apr._fields_ = [
 	('pr', c_uint8),
 	('rlr', c_uint8),
 	('rla', c_uint8),
-	('_pad', c_uint8),
+	('_pad1', c_uint8),
 	('_flags1', c_bitfield('apr_flags1',
 		'mq36',
 		'run',
@@ -269,10 +272,10 @@ c_Apr._fields_ = [
 	('extpulse', c_uint32),
 	('pulses1', p_Pulse * Constants.APR_MAX_PULSES),
 	('pulses2', p_Pulse * Constants.APR_MAX_PULSES),
-	('clist', POINTER(p_Pulse)),
-	('nlist', POINTER(p_Pulse)),
-	('ncurpulses', c_uint32),
-	('nnextpulses', c_uint32),
+	('clist', POINTER(c_size_t)),
+	('nlist', POINTER(c_size_t)),
+	('ncurpulses', c_size_t),
+	('nnextpulses', c_size_t),
 	('emulation_error', c_int),
 	('thr', c_ulong),
 	('emu', POINTER(c_Emu)),
@@ -330,8 +333,171 @@ pulses = [
     'st6',             'st6a',              'st7',                'uuo_t1',                'uuo_t2',
     'xct_t0' ]
 
-addr_for_pulse = { name: addressof(getattr(lib, name)) for name in pulses }
-pulse_for_addr = { addr: name for name, addr in addr_for_pulse }
+INSNAMES = [
+    "UUO00", "UUO01", "UUO02", "UUO03",
+    "UUO04", "UUO05", "UUO06", "UUO07",
+    "UUO10", "UUO11", "UUO12", "UUO13",
+    "UUO14", "UUO15", "UUO16", "UUO17",
+    "UUO20", "UUO21", "UUO22", "UUO23",
+    "UUO24", "UUO25", "UUO26", "UUO27",
+    "UUO30", "UUO31", "UUO32", "UUO33",
+    "UUO34", "UUO35", "UUO36", "UUO37",
+    "UUO40", "UUO41", "UUO42", "UUO43",
+    "UUO44", "UUO45", "UUO46", "UUO47",
+    "UUO50", "UUO51", "UUO52", "UUO53",
+    "UUO54", "UUO55", "UUO56", "UUO57",
+    "UUO60", "UUO61", "UUO62", "UUO63",
+    "UUO64", "UUO65", "UUO66", "UUO67",
+    "UUO70", "UUO71", "UUO72", "UUO73",
+    "UUO74", "UUO75", "UUO76", "UUO77",
+
+    "XX100", "XX101", "XX102", "XX103",
+    "XX104", "XX105", "XX106", "XX107",
+    "XX110", "XX111", "XX112", "XX113",
+    "XX114", "XX115", "XX116", "XX117",
+    "XX120", "XX121", "XX122", "XX123",
+    "XX124", "XX125", "XX126", "XX127",
+    "XX130", "XX131", "FSC", "CAO",
+    "LDCI", "LDC", "DPCI", "DPC",
+    "FAD", "FADL", "FADM", "FADB",
+    "FADR", "FADLR", "FADMR", "FADBR",
+    "FSB", "FSBL", "FSBM", "FSBB",
+    "FSBR", "FSBLR", "FSBMR", "FSBBR",
+    "FMP", "FMPL", "FMPM", "FMPB",
+    "FMPR", "FMPLR", "FMPMR", "FMPBR",
+    "FDV", "FDVL", "FDVM", "FDVB",
+    "FDVR", "FDVLR", "FDVMR", "FDVBR",
+
+    "MOVE", "MOVEI", "MOVEM", "MOVES",
+    "MOVS", "MOVSI", "MOVSM", "MOVSS",
+    "MOVN", "MOVNI", "MOVNM", "MOVNS",
+    "MOVM", "MOVMI", "MOVMM", "MOVMS",
+    "IMUL", "IMULI", "IMULM", "IMULB",
+    "MUL", "MULI", "MULM", "MULB",
+    "IDIV", "IDIVI", "IDIVM", "IDIVB",
+    "DIV", "DIVI", "DIVM", "DIVB",
+    "ASH", "ROT", "LSH", "XX243",
+    "ASHC", "ROTC", "LSHC", "XX247",
+    "EXCH", "BLT", "AOBJP", "AOBJN",
+    "JRST", "JFCL", "XCT", "XX257",
+    "PUSHJ", "PUSH", "POP", "POPJ",
+    "JSR", "JSP", "JSA", "JRA",
+    "ADD", "ADDI", "ADDM", "ADDB",
+    "SUB", "SUBI", "SUBM", "SUBB",
+
+    "CAI", "CAIL", "CAIE", "CAILE",
+    "CAIA", "CAIGE", "CAIN", "CAIG",
+    "CAM", "CAML", "CAME", "CAMLE",
+    "CAMA", "CAMGE", "CAMN", "CAMG",
+    "JUMP", "JUMPL", "JUMPE", "JUMPLE",
+    "JUMPA", "JUMPGE", "JUMPN", "JUMPG",
+    "SKIP", "SKIPL", "SKIPE", "SKIPLE",
+    "SKIPA", "SKIPGE", "SKIPN", "SKIPG",
+    "AOJ", "AOJL", "AOJE", "AOJLE",
+    "AOJA", "AOJGE", "AOJN", "AOJG",
+    "AOS", "AOSL", "AOSE", "AOSLE",
+    "AOSA", "AOSGE", "AOSN", "AOSG",
+    "SOJ", "SOJL", "SOJE", "SOJLE",
+    "SOJA", "SOJGE", "SOJN", "SOJG",
+    "SOS", "SOSL", "SOSE", "SOSLE",
+    "SOSA", "SOSGE", "SOSN", "SOSG",
+
+    "SETZ", "SETZI", "SETZM", "SETZB",
+    "AND", "ANDI", "ANDM", "ANDB",
+    "ANDCA", "ANDCAI", "ANDCAM", "ANDCAB",
+    "SETM", "SETMI", "SETMM", "SETMB",
+    "ANDCM", "ANDCMI", "ANDCMM", "ANDCMB",
+    "SETA", "SETAI", "SETAM", "SETAB",
+    "XOR", "XORI", "XORM", "XORB",
+    "IOR", "IORI", "IORM", "IORB",
+    "ANDCB", "ANDCBI", "ANDCBM", "ANDCBB",
+    "EQV", "EQVI", "EQVM", "EQVB",
+    "SETCA", "SETCAI", "SETCAM", "SETCAB",
+    "ORCA", "ORCAI", "ORCAM", "ORCAB",
+    "SETCM", "SETCMI", "SETCMM", "SETCMB",
+    "ORCM", "ORCMI", "ORCMM", "ORCMB",
+    "ORCB", "ORCBI", "ORCBM", "ORCBB",
+    "SETO", "SETOI", "SETOM", "SETOB",
+
+    "HLL", "HLLI", "HLLM", "HLLS",
+    "HRL", "HRLI", "HRLM", "HRLS",
+    "HLLZ", "HLLZI", "HLLZM", "HLLZS",
+    "HRLZ", "HRLZI", "HRLZM", "HRLZS",
+    "HLLO", "HLLOI", "HLLOM", "HLLOS",
+    "HRLO", "HRLOI", "HRLOM", "HRLOS",
+    "HLLE", "HLLEI", "HLLEM", "HLLES",
+    "HRLE", "HRLEI", "HRLEM", "HRLES",
+    "HRR", "HRRI", "HRRM", "HRRS",
+    "HLR", "HLRI", "HLRM", "HLRS",
+    "HRRZ", "HRRZI", "HRRZM", "HRRZS",
+    "HLRZ", "HLRZI", "HLRZM", "HLRZS",
+    "HRRO", "HRROI", "HRROM", "HRROS",
+    "HLRO", "HLROI", "HLROM", "HLROS",
+    "HRRE", "HRREI", "HRREM", "HRRES",
+    "HLRE", "HLREI", "HLREM", "HLRES",
+
+    "TRN", "TLN", "TRNE", "TLNE",
+    "TRNA", "TLNA", "TRNN", "TLNN",
+    "TDN", "TSN", "TDNE", "TSNE",
+    "TDNA", "TSNA", "TDNN", "TSNN",
+    "TRZ", "TLZ", "TRZE", "TLZE",
+    "TRZA", "TLZA", "TRZN", "TLZN",
+    "TDZ", "TSZ", "TDZE", "TSZE",
+    "TDZA", "TSZA", "TDZN", "TSZN",
+    "TRC", "TLC", "TRCE", "TLCE",
+    "TRCA", "TLCA", "TRCN", "TLCN",
+    "TDC", "TSC", "TDCE", "TSCE",
+    "TDCA", "TSCA", "TDCN", "TSCN",
+    "TRO", "TLO", "TROE", "TLOE",
+    "TROA", "TLOA", "TRON", "TLON",
+    "TDO", "TSO", "TDOE", "TSOE",
+    "TDOA", "TSOA", "TDON", "TSON" ]
+
+OPCODE_BY_INS = { name: i for i, name in enumerate(INSNAMES) }
+
+class Opcode(Enum):
+	FSC    = 0o132
+	IBP    = 0o133
+	CAO    = 0o133
+	LDCI   = 0o134
+	LDC    = 0o135
+	DPCI   = 0o136
+	DPC    = 0o137
+	ASH    = 0o240
+	ROT    = 0o241
+	LSH    = 0o242
+	ASHC   = 0o244
+	ROTC   = 0o245
+	LSHC   = 0o246
+	EXCH   = 0o250
+	BLT    = 0o251
+	AOBJP  = 0o252
+	AOBJN  = 0o253
+	JRST   = 0o254
+	JFCL   = 0o255
+	XCT    = 0o256
+	PUSHJ  = 0o260
+	PUSH   = 0o261
+	POP    = 0o262
+	POPJ   = 0o263
+	JSR    = 0o264
+	JSP    = 0o265
+	JSA    = 0o266
+	JRA    = 0o267
+
+	BLKI   = 0o700000
+	DATAI  = 0o700040
+	BLKO   = 0o700100
+	DATAO  = 0o700140
+	CONO   = 0o700200
+	CONI   = 0o700240
+	CONSZ  = 0o700300
+	CONSO  = 0o700340
+
+# TODO: find out whether there is a better way for the pointer golf below
+# It's amazing how complex a simple ** can get in ctypes.
+addr_for_pulse = { name: cast(addressof(getattr(lib, name)), POINTER(c_size_t)).contents.value for name in pulses }
+pulse_for_addr = { addr: name for name, addr in addr_for_pulse.items() }
 
 for fieldname, ctype in c_Apr._fields_:
 	if issubclass(ctype, c_bitfield_parent):
@@ -352,8 +518,8 @@ class Emu:
 		self._mem = self._emu.mem.contents
 
 	def __del__(self):
-		if self._emu:
-			lib.emu_destroy(self._emu)
+		if self._emu is not None:
+			lib.emu_destroy(pointer(self._emu))
 	
 	def pulse(self, name):
 		getattr(lib, name)(self._emu.apr)
@@ -366,17 +532,23 @@ class Emu:
 
 	@property
 	def nextpulses(self):
-		return [ pulse_for_addr[addressof(self._apr.nlist[i])] for i in range(self._apr.nnextpulses) ]
+		return [ pulse_for_addr[self._apr.nlist[i]] for i in range(self._apr.nnextpulses) ]
 
 	def apr_cycle(self):
-		lib.apr_cycle(self._emu.apr)
+		lib.apr_cycle(pointer(self._emu))
 	
 	def dequeue_pulse(self, name):
 		return lib.apr_dequeue_pulse(self._emu.apr, getattr(lib, name))
 
+	def clear_pulses(self):
+		return lib.apr_clear_pulses(self._emu.apr)
+
 	def wake(self, wid):
 		w = self._emu.iobusmap[wid]
 		w.func(w.arg)
+
+	def decode_ir(self):
+		lib.decode_ir(self._emu.apr)
 	
 
 	@property
@@ -430,4 +602,9 @@ class Emu:
 	@property
 	def memory(self):
 		return self._mem.memory
+
+#if __name__ == '__main__':
+	#e = Emu()
+	#for n, t in c_Apr._fields_:
+	#	print(n, '=>', getattr(c_Apr, n).offset)
 

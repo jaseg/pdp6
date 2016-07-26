@@ -1,6 +1,8 @@
 #include "pdp6.h"
 #include <unistd.h>
 #include <string.h>
+/* FIXME: debug */
+#include <signal.h>
 
 #define DBG_AR print("AR: %012llo\n", apr->ar)
 #define DBG_MB print("MB: %012llo\n", apr->mb)
@@ -3375,10 +3377,10 @@ pulse(key_manual) {
 /* APR infrastructure */
 
 void nextpulse(Apr *apr, Pulse *p) {
-    if (apr->nnextpulses >= nelem(apr->pulses1))
-        apr->emulation_error = APR_ERR_TOO_MANY_PULSES;
-    else
-        apr->nlist[apr->nnextpulses++] = p;
+    //if (apr->nnextpulses >= nelem(apr->pulses1))
+    //    apr->emulation_error = APR_ERR_TOO_MANY_PULSES;
+    //else FIXME
+    apr->nlist[apr->nnextpulses++] = p;
 }
 
 int apr_dequeue_pulse(Apr *apr, Pulse *p) {
@@ -3390,6 +3392,10 @@ int apr_dequeue_pulse(Apr *apr, Pulse *p) {
             apr->nlist[i] = apr->nlist[j];
     }
     return j-i;
+}
+
+void apr_clear_pulses(Apr *apr) {
+    apr->nnextpulses = apr->ncurpulses = 0;
 }
 
 void apr_cycle(Emu *emu) {
@@ -3515,6 +3521,10 @@ void apr_poweron(Emu *emu) {
 
     apr->sw_power = 1;
     pthread_create(&apr->thr, NULL, apr_handler_thread, emu);
+}
+
+void crash(void) {
+    raise(SIGINT);
 }
 
 Apr *apr_init(Emu *emu) {

@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-import pydp
+
 import ctypes
 from pprint import pprint
 import unittest
+from itertools import product, chain
+
+import pydp
 
 FW   = 0o777777777777
 RT   = 0o000000777777
@@ -49,79 +52,159 @@ F34  = 0o000000000002
 F35  = 0o000000000001
 
 class EmuTest(unittest.TestCase):
-	def setUp(self):
-		self.e = pydp.Emu()
-		self.a = self.e._apr
-		self.pulses = []
+    def setUp(self):
+        self.e = pydp.Emu()
+        self.a = self.e._apr
+        self.pulses = []
 
-	def tearDown(self):
-		del self.e
+    def tearDown(self):
+        del self.e
 
-	def pulseCycle(self):
-		self.pulses.append(self.e.nextpulses)
-		self.e.apr_cycle()
+    def pulseCycle(self):
+        self.pulses.append(self.e.nextpulses)
+        self.e.apr_cycle()
 
-	def pulseRun(self, pulse, until_any=[], until_all=[], steps=None, ignore=[]):
-		until_any, until_all, ignore = set(until_any), set(until_all), set(ignore)
+    def pulseRun(self, pulse, until_any=[], until_all=[], steps=None, ignore=[]):
+        print('===========', pulse, '===========')
+        until_any, until_all, ignore = set(until_any), set(until_all), set(ignore)
 
-		self.e.pulse(pulse)
-		self.pulses.append([pulse])
+        self.e.clear_pulses()
+        self.pulses = []
 
-		if steps is not None:
-			np = set(self.e.nextpulses)
-			while np:
-				self.pulseCycle()
+        self.e.pulse(pulse)
+        self.pulses.append([pulse])
+        print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses)
 
-				for b in ignore:
-					self.e.dequeue_pulse(b)
-				_np = self.e.nextpulses
-				np = set(_np)
-				if len(np) != len(_np):
-					raise ValueError('Duplicate pulse in nextpulses')
+        if steps is not None:
+            np = set(self.e.nextpulses)
+            while np:
+                self.pulseCycle()
+                print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses)
 
-				if np & until_any:
-					break
+                for b in ignore:
+                    self.e.dequeue_pulse(b)
+                _np = self.e.nextpulses
+                np = set(_np)
+                if len(np) != len(_np):
+                    raise ValueError('Duplicate pulse in nextpulses')
 
-				if until_all:
-					until_all -= np
-					if not until_all:
-						break
-				
-				steps -= 1
-				if steps == 0:
-					raise RuntimeError('Step limit exceeded')
-	
-	def countPulse(self, name):
-		return sum( (1 if p == name else 0) for ps in pulses for p in ps )
+                if np & until_any:
+                    break
 
-	def assertFlag(self, name, value):
-		self.assertEqual(getattr(self.a, name), value, 'APR flag {} is incorrect'.format(name))
-	def assertReg(self, name, value):
-		self.assertEqual(getattr(self.a, name), value, 'APR register {} is incorrect'.format(name))
-	
-	def assertPulse(self, name):
-		self.assertEqual(self.countPulse(name), 1, 'Pulse {} did not run'.format(name))
+                if until_all:
+                    until_all -= np
+                    if not until_all:
+                        break
+                
+                steps -= 1
+                if steps == 0:
+                    raise RuntimeError('Step limit exceeded')
+        print(steps, 'steps.')
+        print()
+    
+    def countPulse(self, name):
+        return sum( (1 if p == name else 0) for ps in pulses for p in ps )
 
-	def assertNotPulse(self, name):
-		self.assertEqual(self.countPulse(name), 0, 'Pulse {} did not run'.format(name))
+    def assertFlag(self, name, value):
+        self.assertEqual(getattr(self.a, name), value, 'APR flag {} is incorrect'.format(name))
+    def assertReg(self, name, value):
+        self.assertEqual(getattr(self.a, name), value, 'APR register {} is incorrect'.format(name))
+    
+    def assertPulse(self, name):
+        self.assertEqual(self.countPulse(name), 1, 'Pulse {} did not run'.format(name))
 
-def ShiftTests(EmuTest)
-	def _ash_sim(self, ins, ar, mq):
-		return { 'ASHR':  ((ar>>1) | (ar&F0),
-						   mq)
-				 'ASHL':  (((ar<<1)&FW), mq)
-				 'ASHCR': ((ar>>1) | (ar&F0),
-						   ((mq&0o177777777777)>>1) | (bool(ar&F35)*F1) | (ar&F0)),
-				 'ASHCL': (((ar&0o377777777776)<<1) | (ar&F0) | (bool(mq&F1)*F35),
-						   (((mq&0o177777777777)<<1) | (ar&F0))),
-				 'ROTR':  (
-				 'ROTL':
-				 'ROTCR':
-				 'ROTCL':
-				 'LSHR':
-				 'LSHL':
-				 'LSHCR':
-				 'LSHCL': }
+    def assertNotPulse(self, name):
+        self.assertEqual(self.countPulse(name), 0, 'Pulse {} did not run'.format(name))
+
+class ShiftTests(EmuTest):
+    OPS =  {  'ASHR': lambda a, m: (a[0]  + a[0:35]        , m                            ),
+              'ASHL': lambda a, m: (        a[1:35] + '0'  , m                            ),
+             'ASHCR': lambda a, m: (a[0]  + a[0:36]        , a[0]+ a[35] + m[1:35]        ),
+             'ASHCL': lambda a, m: (a[0]  + a[2:36] + m[1] , a[0]        + m[2:36] + '0'  ),
+              'ROTR': lambda a, m: (a[35] + a[0:35]        ,               m              ), 
+              'ROTL': lambda a, m: (        a[1:35] + a[0] ,               m              ),
+             'ROTCR': lambda a, m: (m[35] + a[0:35]        , a[35]       + m[0:35]        ),
+             'ROTCL': lambda a, m: (        a[1:36] + m[0] ,               m[1:36] + a[0] ),
+              'LSHR': lambda a, m: ('0'   + a[0:35]        ,               m              ),
+              'LSHL': lambda a, m: (        a[1:36] + '0'  ,               m              ),
+             'LSHCR': lambda a, m: ('0'   + a[0:35]        , a[35]       + m[0:35]        ),
+             'LSHCL': lambda a, m: (        a[1:36] + m[0] ,               m[1:36] + '0'  ) }
+
+    OPCODES = { 'ASH':  pydp.Opcode.ASH,  'ROT':  pydp.Opcode.ROT,  'LSH':  pydp.Opcode.LSH,
+                'ASHC': pydp.Opcode.ASHC, 'ROTC': pydp.Opcode.ROTC, 'LSHC': pydp.Opcode.LSHC }
+
+    FUNNY_VALS_A = [ #0o777777777777, 0o000000000000, 0o111111111111, 0o222222222222, 0o444444444444, 0o333333333333,
+#                     0o666666666666, 0o555555555555, 0o666666666666,
+#                     0x111111111,    0x222222222,    0x444444444,    0x888888888,
+                     0o400000000000, 0o200000000000, 0o300000000000, 0o000000000001, 0o000000000002, 0o000000000003, ]
+#                     0o172631651263, 0o010124010234, 0o010100100110, 0o020310200012, 0o776567756471, 0o123456701234 ] # cue me mashing my keyboard ^jaseg
+
+    FUNNY_VALS_B = [ #0o777777777777, 0o000000000000,
+                     0x111111111,    0o400000000000, 0o200000000000, 0o000000000001, ]
+                     #0o761226345521, 0o012040124612 ]
+                   
+
+    def _sh_sim(self, ins, ar, mq, n=1):
+        a, m = '{:036b}'.format(ar), '{:036b}'.format(mq)
+        for i in range(n):
+            a, m = ShiftTests.OPS[ins](a, m)
+        return int(a, 2), int(m, 2)
+    
+    def test_shift(self):
+        _2xxsh = (0b010100<<30)
+        errmsg = lambda reg, iar, imq, xp, act:\
+                '{} not correct with initial ar={:09x} mq={:09x}, expected {:09x} actual {:09x}'.format(
+                        reg, iar, imq, xp, act)
+        for ins, (a, b) in product(('ASH', 'ROT', 'LSH'),
+                            chain(
+                                product(ShiftTests.FUNNY_VALS_A, ShiftTests.FUNNY_VALS_B),
+                                product(ShiftTests.FUNNY_VALS_B, ShiftTests.FUNNY_VALS_A))):
+
+            baseop = _2xxsh | (ShiftTests.OPCODES[ins].value<<27);
+            for n in range(1,2): #37):
+                with self.subTest(n=n, ins=ins, direction='LEFT', ar=a, mq=b):
+                    self.a.mb = baseop
+                    self.a.ar, self.a.mq = a, b
+                    self.e.decode_ir()
+                    self.pulseRun('ft6a', until_any=['et10'], steps=32)
+                    ar, mq = self._sh_sim(ins + 'L', a, b)
+                    aar, amq = self.a.ar.value, self.a.mq.value
+                    self.assertEqual(aar, ar, errmsg('AR', a, b, ar, aar))
+                    self.assertEqual(amq, mq, errmsg('MQ', a, b, mq, amq))
+
+                with self.subTest(n=n, ins=ins, direction='RIGHT', ar=a, mq=b):
+                    self.a.mb = baseop | F18
+                    self.a.ar, self.a.mq = a, b
+                    self.e.decode_ir()
+                    self.pulseRun('ft6a', until_any=['et10'], steps=32)
+                    ar, mq = self._sh_sim(ins + 'R', a, b)
+                    aar, amq = self.a.ar.value, self.a.mq.value
+                    self.assertEqual(aar, ar, errmsg('AR', a, b, ar, aar))
+                    self.assertEqual(amq, mq, errmsg('MQ', a, b, mq, amq))
+
+            baseop = _2xxsh | (ShiftTests.OPCODES[ins+'C'].value<<27);
+            for n in range(1,2): #73):
+                with self.subTest(n=n, ins=ins+'C', direction='RIGHT', ar=a, mq=b):
+                    self.a.mb = baseop
+                    self.a.ar, self.a.mq = a, b
+                    self.e.decode_ir()
+                    self.pulseRun('ft6a', until_any=['et10'], steps=32)
+                    ar, mq = self._sh_sim(ins + 'CL', a, b)
+                    aar, amq = self.a.ar.value, self.a.mq.value
+                    self.assertEqual(aar, ar, errmsg('AR', a, b, ar, aar))
+                    self.assertEqual(amq, mq, errmsg('MQ', a, b, mq, amq))
+
+                with self.subTest(n=n, ins=ins+'C', direction='RIGHT', ar=a, mq=b):
+                    self.a.mb = baseop | F18
+                    self.a.ar, self.a.mq = a, b
+                    self.e.decode_ir()
+                    self.pulseRun('ft6a', until_any=['et10'], steps=32)
+                    ar, mq = self._sh_sim(ins + 'CR', a, b)
+                    aar, amq = self.a.ar.value, self.a.mq.value
+                    self.assertEqual(aar, ar, errmsg('AR', a, b, ar, aar))
+                    self.assertEqual(amq, mq, errmsg('MQ', a, b, mq, amq))
+            break #DEBUG FIXME
+    
 
 if __name__ == '__main__':
-	unittest.main()
+    unittest.main()
