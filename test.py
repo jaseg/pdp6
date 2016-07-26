@@ -51,6 +51,26 @@ F33  = 0o000000000004
 F34  = 0o000000000002
 F35  = 0o000000000001
 
+H0  = 0o400000
+H1  = 0o200000
+H2  = 0o100000
+H3  = 0o040000
+H4  = 0o020000
+H5  = 0o010000
+H6  = 0o004000
+H7  = 0o002000
+H8  = 0o001000
+H9  = 0o000400
+H10 = 0o000200
+H11 = 0o000100
+H12 = 0o000040
+H13 = 0o000020
+H14 = 0o000010
+H15 = 0o000004
+H16 = 0o000002
+H17 = 0o000001
+
+
 whex = lambda x: '{:09x}'.format(x)
 
 class EmuTest(unittest.TestCase):
@@ -75,14 +95,14 @@ class EmuTest(unittest.TestCase):
 
         self.e.pulse(pulse)
         self.pulses.append([pulse])
-        #print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses)
+        print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses)
 
         if steps is not None:
             np = set(self.e.nextpulses)
             i = 1
             while np:
                 self.pulseCycle()
-                #print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses)
+                print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses)
 
                 for b in ignore:
                     self.e.dequeue_pulse(b)
@@ -103,8 +123,8 @@ class EmuTest(unittest.TestCase):
                 i += 1
                 if i == steps:
                     raise RuntimeError('Step limit exceeded')
-        #print('{}/{} steps.'.format(i, steps))
-        #print()
+        print('{}/{} steps.'.format(i, steps))
+        print()
     
     def countPulse(self, name):
         return sum( (1 if p == name else 0) for ps in pulses for p in ps )
@@ -124,6 +144,9 @@ _2xxsh = (0b010100<<12)
 regerr = lambda reg, xp, act:\
         '{} not correct, expected {:09x} actual {:09x}'.format(
                 reg, xp, act)
+regerro = lambda reg, xp, act:\
+        '{} not correct, expected {:012o} actual {:012o}'.format(
+                 reg, xp, act)
 class ShiftTests(EmuTest):
     OPS =  {  'ASHR': lambda a, m: (a[0]  + a[0:35]        , m                            ),
               'ASHL': lambda a, m: (a[0]  + a[2:36] + '0'  , m                            ),
@@ -227,7 +250,76 @@ class ShiftTests(EmuTest):
                     aar, amq = self.a.ar.value, self.a.mq.value
                     self.assertEqual(aar, ar, regerr('AR', ar, aar))
                     self.assertEqual(amq, mq, regerr('MQ', mq, amq))
-    
+
+woct = lambda x: '{:012o}'.format(x)
+class HWTTests(EmuTest):
+	def _hwt_sim(self, w, xx, y, zz, ar, mb):
+		if zz == 2:
+			src = ar
+		else:
+			src = mb
+		l, r = (mb>>18)&RT, mb&RT
+
+		if zz == 2 or zz == 3:
+			dl, dr = (mb>>18)&RT, mb&RT
+		else:
+			dl, dr = (ar>>18)&RT, ar&RT
+
+		if y:
+			l, r = r, l
+			dl, dr = dr, dl
+
+		if w:
+			d, nd = l, r
+			dd, dnd = dl, dr
+		else:
+			d, nd = r, l
+			dd, dnd = dr, dl
+
+		if xx == 1:
+			nd = 0o000000
+		elif xx == 2:
+			nd = 0o777777
+		elif xx == 3:
+			nd = 0o777777 if d&0o400000 else 0o000000
+		else:
+			nd = dnd
+
+		if w:
+			dst = (nd<<18) | d
+		else:
+			dst = (d<<18) | nd
+
+		if zz == 2:
+			return ar, dst
+		elif zz == 3:
+			return dst, dst
+		else:
+			return dst, mb
+
+
+	def test_hwt(self):
+		for w, xx, y, zz in product([0, 1], [0, 1, 2, 3], [0, 1], [0, 1, 2, 3]):
+			for ar, mb in [(0o111111222222, 0o333333444444),
+					(0o000000777777, 0o000000000000), (0o000000000000, 0o000000777777),
+					(0o777777000000, 0o000000000000), (0o000000000000, 0o777777000000),
+					(0o123456712345, 0o671234567123)]:
+				with self.subTest(w=w, xx=xx, y=y, zz=zz, ar=woct(ar), mb=woct(mb)):
+					self.e.pulse('mr_clr')
+					self.a.ir = 0b101<<15 | w<<14 | xx<<12 | y<<11 | zz<<9
+					self.a.ar, self.a.mb = ar, mb
+					self.e.decode_ir()
+					self.assertEqual(self.a.inst>>6, 0b101, 'instruction not decoded correctly')
+
+					self.pulseRun('et0a', until_any=['et10'], steps=32)
+
+					ear, emb = self._hwt_sim(w, xx, y, zz, ar, mb)
+					aar, amb = self.a.ar.value, self.a.mb.value
+					self.assertEqual(aar, ear, regerro('AR', ear, aar))
+					self.assertEqual(amb, emb, regerro('MB', emb, amb))
+				break
+			break
 
 if __name__ == '__main__':
     unittest.main()
+
