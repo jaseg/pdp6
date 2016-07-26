@@ -430,7 +430,7 @@ void decode_ir(Apr *apr) {
     }
     apr->ir_md = (apr->inst & 0760) == 0220;
     apr->shift_op = (apr->inst & 0770) == 0240 &&
-                   (apr->inst & 03) != 3;       // 6-20
+                    (apr->inst & 03) != 3;       // 6-20
     apr->ir_jp = (apr->inst & 0770) == 0260;
     apr->ir_as = (apr->inst & 0770) == 0270;
 
@@ -1101,15 +1101,15 @@ pulse(blt_t0) {
  */
 
 // 6-14
-static inline void sc_com(Apr *apr) {
+void sc_com(Apr *apr) {
     apr->sc = ~apr->sc & 0777;
 }
 
-static inline void sc_inc(Apr *apr) {
+void sc_inc(Apr *apr) {
     apr->sc = (apr->sc+1) & 0777;
 }
 
-boolex(sc_data) {
+word sc_data(Apr *apr) {
     if (apr->chf1)
         return ((~apr->mb>>30) & 077) | 0700;
     else if (apr->chf2)
@@ -1121,11 +1121,11 @@ boolex(sc_data) {
     return 0;
 }
 
-static inline void sc_pad(Apr *apr) {
+void sc_pad(Apr *apr) {
     apr->sc ^= sc_data(apr);
 }
 
-static inline void sc_cry(Apr *apr) {
+void sc_cry(Apr *apr) {
     apr->sc += (~apr->sc & sc_data(apr)) << 1;
 }
 
@@ -1145,19 +1145,19 @@ boolex(ms_mult) {
 /* Shift counter */
 
 // 6-7, 6-17, 6-13
-static inline void ar_sh_lt(Apr *apr, word ar0_shl_inp, word ar35_shl_inp) {
+void ar_sh_lt(Apr *apr, word ar0_shl_inp, word ar35_shl_inp) {
     apr->ar = ((apr->ar<<1) & 0377777777776) | ar0_shl_inp | ar35_shl_inp;
 }
 
-static inline void mq_sh_lt(Apr *apr, word mq0_shl_inp, word mq35_shl_inp) {
+void mq_sh_lt(Apr *apr, word mq0_shl_inp, word mq35_shl_inp) {
     apr->mq = ((apr->mq<<1) & 0377777777776) | mq0_shl_inp | mq35_shl_inp;
 }
 
-static inline void ar_sh_rt(Apr *apr, word ar0_shr_inp) {
+void ar_sh_rt(Apr *apr, word ar0_shr_inp) {
     apr->ar = ((apr->ar>>1) & 0377777777777) | ar0_shr_inp;
 }
 
-static inline void mq_sh_rt(Apr *apr, word mq0_shr_inp, word mq1_shr_inp) {
+void mq_sh_rt(Apr *apr, word mq0_shr_inp, word mq1_shr_inp) {
     apr->mq36 = apr->mq&F35;
     apr->mq = ((apr->mq>>1) & 0177777777777) | mq0_shr_inp | mq1_shr_inp;
 }
