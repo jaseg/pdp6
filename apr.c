@@ -1135,7 +1135,7 @@ boolex(shc_ashc) {
 }
 
 boolex(shc_div) {
-    return ir_div(apr) || ir_fdv(apr) || !apr->nrf2;
+    return ir_div(apr) || ir_fdv(apr) || apr->nrf2;
 }
 
 boolex(ms_mult) {
@@ -2815,12 +2815,14 @@ pulse(et0) {
 }
 
 pulse(et0a) {
+    /*
     static int gen = 0;
     debug_print(apr->emu, "%o: ", apr->pc);
     if ((apr->inst & 0700) != 0700)
         debug_print(apr->emu, "%d %s\n", gen++, insnames[apr->inst]);
     else
         debug_print(apr->emu, "%d %s\n", gen++, ionames[apr->io_inst>>5 & 7]);
+    */
 
     if (pi_hold(apr))
         set_pih(apr, apr->pi_req);  // 8-3, 8-4
