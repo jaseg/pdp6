@@ -122,10 +122,10 @@ class EmuTest(unittest.TestCase):
 
     def pulseRun(self, pulse, until_any=[], until_all=[], steps=None, ignore=[]):
         tracer = io.StringIO()
-        traceregs = lambda: print('ar={:012o} mq={:012o} mb={:012o}\nflags: '.format(self.ar, self.mq, self.mb,
-            self.allflags(tracer)), file=tracer)
+        traceregs = lambda: print('ar={:012o} mq={:012o} mb={:012o}'.format(self.ar, self.mq, self.mb), file=tracer)
         print('===========', pulse, '===========', file=tracer)
         traceregs()
+        #self.allflags(tracer)
         until_any, until_all, ignore = set(until_any), set(until_all), set(ignore)
 
         self.e.clear_pulses()
@@ -135,6 +135,7 @@ class EmuTest(unittest.TestCase):
         self.e.pulse(pulse)
         self.pulses.append([pulse])
         traceregs()
+        #self.allflags(tracer)
         print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses, file=tracer)
 
         if steps is not None:
@@ -144,6 +145,7 @@ class EmuTest(unittest.TestCase):
                 print('Cycle', i, file=tracer)
                 self.pulseCycle()
                 traceregs()
+                #self.allflags(tracer)
                 print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses, file=tracer)
 
                 for b in ignore:
@@ -361,7 +363,7 @@ class HWTTests(EmuTest):
                                 self.e.decode_ir()
                                 self.assertEqual(self.a.inst>>6, 0b101, 'instruction not decoded correctly')
 
-                                trace = self.pulseRun('ft6a', until_any=['et10'], steps=32)
+                                trace = self.pulseRun('ft6a', until_any=['st1'], steps=32)
 
                                 ear, emb = self._hwt_sim(ins, w, xx, y, zz, ar, mb)
                                 aar, amb = self.a.ar.value, self.a.mb.value
