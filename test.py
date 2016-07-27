@@ -87,7 +87,7 @@ class EmuTest(unittest.TestCase):
         self.e.apr_cycle()
 
     def pulseRun(self, pulse, until_any=[], until_all=[], steps=None, ignore=[]):
-        #print('===========', pulse, '===========')
+        print('===========', pulse, '===========')
         until_any, until_all, ignore = set(until_any), set(until_all), set(ignore)
 
         self.e.clear_pulses()
@@ -253,72 +253,88 @@ class ShiftTests(EmuTest):
 
 woct = lambda x: '{:012o}'.format(x)
 class HWTTests(EmuTest):
-	def _hwt_sim(self, w, xx, y, zz, ar, mb):
-		if zz == 2:
-			src = ar
-		else:
-			src = mb
-		l, r = (mb>>18)&RT, mb&RT
+	OPS = {
+			'HLL':  lambda dl, dr, sl, sr: sl+dr,
+			'HLR':  lambda dl, dr, sl, sr: dl+sl,
+			'HRL':  lambda dl, dr, sl, sr: sr+dr,
+			'HRR':  lambda dl, dr, sl, sr: dl+sr,
+			'HLLZ': lambda dl, dr, sl, sr: sl+'0'*18,
+			'HLRZ': lambda dl, dr, sl, sr: '0'*18+sl,
+			'HRLZ': lambda dl, dr, sl, sr: sr+'0'*18,
+			'HRRZ': lambda dl, dr, sl, sr: '0'*18+sr,
+			'HLLO': lambda dl, dr, sl, sr: sl+'1'*18,
+			'HLRO': lambda dl, dr, sl, sr: '1'*18+sl,
+			'HRLO': lambda dl, dr, sl, sr: sr+'1'*18,
+			'HRRO': lambda dl, dr, sl, sr: '1'*18+sr,
+			'HLLE': lambda dl, dr, sl, sr: sl+sl[0]*18,
+			'HLRE': lambda dl, dr, sl, sr: sr[0]*18+sl,
+			'HRLE': lambda dl, dr, sl, sr: sr+sl[0]*18,
+			'HRRE': lambda dl, dr, sl, sr: sr[0]*18+sr
+			}
 
-		if zz == 2 or zz == 3:
-			dl, dr = (mb>>18)&RT, mb&RT
-		else:
-			dl, dr = (ar>>18)&RT, ar&RT
+	def _hwt_sim(self, ins, w, xx, y, zz, ar, mb):
+		ar, mb = '{:036b}'.format(ar), '{:036b}'.format(mb)
 
-		if y:
-			l, r = r, l
-			dl, dr = dr, dl
+		if zz == 0:
+			dst,src = 'ar', mb
+			dstv = ar
+		elif zz == 1: # I
+			dst,src = 'ar', mb
+			dstv = ar
+		elif zz == 2: # M
+			dst,src = 'mb', ar
+			dstv = mb
+		else:# zz == 3: # S
+			dst,src = 'mb', mb
+			dstv = mb
 
-		if w:
-			d, nd = l, r
-			dd, dnd = dl, dr
-		else:
-			d, nd = r, l
-			dd, dnd = dr, dl
+		srcl, srcr = src[:18], src[18:]
+		dstvl, dstvr = dstv[:18], dstv[18:]
 
-		if xx == 1:
-			nd = 0o000000
-		elif xx == 2:
-			nd = 0o777777
-		elif xx == 3:
-			nd = 0o777777 if d&0o400000 else 0o000000
-		else:
-			nd = dnd
+		res = HWTTests.OPS[ins](dstvl, dstvr, srcl, srcr)
 
-		if w:
-			dst = (nd<<18) | d
-		else:
-			dst = (d<<18) | nd
-
-		if zz == 2:
-			return ar, dst
-		elif zz == 3:
-			return dst, dst
-		else:
-			return dst, mb
-
+		if dst == 'ar':
+#			if ins[1:3] in ('RL', 'LR'):
+#				print('SWAP')
+#				return int(res, 2), int(mb[0:18]+mb[18:], 2)
+#			else:
+			return int(res, 2), int(mb, 2)
+		elif dst == 'mb':
+			return int(ar, 2), int(res, 2)
 
 	def test_hwt(self):
-		for w, xx, y, zz in product([0, 1], [0, 1, 2, 3], [0, 1], [0, 1, 2, 3]):
-			for ar, mb in [(0o111111222222, 0o333333444444),
-					(0o000000777777, 0o000000000000), (0o000000000000, 0o000000777777),
-					(0o777777000000, 0o000000000000), (0o000000000000, 0o777777000000),
-					(0o123456712345, 0o671234567123)]:
-				with self.subTest(w=w, xx=xx, y=y, zz=zz, ar=woct(ar), mb=woct(mb)):
-					self.e.pulse('mr_clr')
-					self.a.ir = 0b101<<15 | w<<14 | xx<<12 | y<<11 | zz<<9
-					self.a.ar, self.a.mb = ar, mb
-					self.e.decode_ir()
-					self.assertEqual(self.a.inst>>6, 0b101, 'instruction not decoded correctly')
+		for w in [0, 1]:
+			for xx in [0, 1, 2, 3]:
+				for y in [0, 1]:
+					for zz in [0, 1, 2, 3]:
+						for ar, mb in [(0o111111222222, 0o333333444444),
+								(0o000000777777, 0o000000000000), (0o000000000000, 0o000000777777),
+								(0o777777000000, 0o000000000000), (0o000000000000, 0o777777000000),
+								(0o123456712345, 0o671234567123)]:
+							ins = 'H' +\
+								  {(0,0):'LL', (0,1):'RL', (1,0):'RR', (1,1):'LR'}[(w,y)] +\
+								  {0:'', 1:'Z', 2:'O', 3:'E'}[xx]
+							insv = ins + {0:'', 1:'I', 2:'M', 3:'S'}[zz]
+							with self.subTest(ins=insv, w=w, xx=xx, y=y, zz=zz, ar=woct(ar), mb=woct(mb)):
+								self.e.pulse('mr_clr')
+								self.a.ir = 0b101<<15 | w<<14 | xx<<12 | y<<11 | zz<<9
+								self.a.ar, self.a.mb = ar, mb
+								self.a.mq = 0
+								self.e.decode_ir()
+								self.assertEqual(self.a.inst>>6, 0b101, 'instruction not decoded correctly')
 
-					self.pulseRun('et0a', until_any=['et10'], steps=32)
+								self.pulseRun('ft6a', until_any=['et10'], steps=32)
 
-					ear, emb = self._hwt_sim(w, xx, y, zz, ar, mb)
-					aar, amb = self.a.ar.value, self.a.mb.value
-					self.assertEqual(aar, ear, regerro('AR', ear, aar))
-					self.assertEqual(amb, emb, regerro('MB', emb, amb))
-				break
-			break
+								ear, emb = self._hwt_sim(ins, w, xx, y, zz, ar, mb)
+								aar, amb = self.a.ar.value, self.a.mb.value
+								# FIXME: This may be too relaxed, see handbook p.27 which says the source remains
+								# untouched except in mode 11. Conversely, the schematics clearly specify that MQ is
+								# clobbered in HWT SWAP instructions.
+								if zz == 0 or zz == 1:
+									self.assertEqual(aar, ear, regerro('AR', ear, aar))
+								if zz == 2 or zz == 3:
+									self.assertEqual(amb, emb, regerro('MB', emb, amb))
+							break #FIXME
 
 if __name__ == '__main__':
     unittest.main()

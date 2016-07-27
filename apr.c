@@ -2674,7 +2674,7 @@ pulse(et4) {
     if (iot_blk(apr))
         nextpulse(apr, iot_t0);     // 8-1
     else if (apr->ir_iot)
-        apr->iot_go = 1;        // 8-1
+        apr->iot_go = 1;            // 8-1
 
     if (ir_fsb(apr))
         nextpulse(apr, fat0);       // 6-22
