@@ -311,8 +311,8 @@ class HWTTests(EmuTest):
             'HRLO': lambda dl, dr, sl, sr: sr+'1'*18,
             'HRRO': lambda dl, dr, sl, sr: '1'*18+sr,
             'HLLE': lambda dl, dr, sl, sr: sl+sl[0]*18,
-            'HLRE': lambda dl, dr, sl, sr: sr[0]*18+sl,
-            'HRLE': lambda dl, dr, sl, sr: sr+sl[0]*18,
+            'HLRE': lambda dl, dr, sl, sr: sl[0]*18+sl,
+            'HRLE': lambda dl, dr, sl, sr: sr+sr[0]*18,
             'HRRE': lambda dl, dr, sl, sr: sr[0]*18+sr
             }
 
@@ -350,6 +350,8 @@ class HWTTests(EmuTest):
                         for ar, mb in [(0o111111222222, 0o333333444444),
                                 (0o000000777777, 0o000000000000), (0o000000000000, 0o000000777777),
                                 (0o777777000000, 0o000000000000), (0o000000000000, 0o777777000000),
+                                (0o000000333333, 0o000000000000), (0o000000000000, 0o000000333333),
+                                (0o333333000000, 0o000000000000), (0o000000000000, 0o333333000000),
                                 (0o123456712345, 0o671234567123)]:
                             ins = 'H' +\
                                   {(0,0):'LL', (0,1):'RL', (1,0):'RR', (1,1):'LR'}[(w,y)] +\
@@ -374,7 +376,6 @@ class HWTTests(EmuTest):
                                     self.assertEqual(aar, ear, regerro('AR', ear, aar, trace))
                                 if zz == 2 or zz == 3:
                                     self.assertEqual(amb, emb, regerro('MB', emb, amb, trace))
-                            break #FIXME
 
 
 
