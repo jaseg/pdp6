@@ -112,12 +112,13 @@ class EmuTest(unittest.TestCase):
         self.a.mb = val
 
     def allflags(self, io):
-        pprint(self.a._flags1.value, io)
-        pprint(self.a._flags2.value, io)
-        pprint(self.a._flags3.value, io)
-        pprint(self.a._flags4.value, io)
-        pprint(self.a._flags5.value, io)
-        pprint(self.a._flags6.value, io)
+        for f in [ self.a._flags1,
+                   self.a._flags2,
+                   self.a._flags3,
+                   self.a._flags4,
+                   self.a._flags4,
+                   self.a._flags6 ]:
+            print({k: [0, 1][b] for k, b in f.value.items()}, file=io)
 
     def pulseRun(self, pulse, until_any=[], until_all=[], steps=None, ignore=[]):
         tracer = io.StringIO()
