@@ -4,6 +4,7 @@ import ctypes
 from pprint import pprint
 import unittest
 from itertools import product, chain
+import io
 
 import pydp
 
@@ -86,23 +87,54 @@ class EmuTest(unittest.TestCase):
         self.pulses.append(self.e.nextpulses)
         self.e.apr_cycle()
 
+    @property
+    def ar(self):
+        return self.a.ar.value
+
+    @ar.setter
+    def ar_set(self, val):
+        self.a.ar = val
+
+    @property
+    def mq(self):
+        return self.a.mq.value
+
+    @mq.setter
+    def mq_set(self, val):
+        self.a.mq = val
+
+    @property
+    def mb(self):
+        return self.a.mb.value
+
+    @mb.setter
+    def mb_set(self, val):
+        self.a.mb = val
+
     def pulseRun(self, pulse, until_any=[], until_all=[], steps=None, ignore=[]):
-        print('===========', pulse, '===========')
+        tracer = io.StringIO()
+        traceregs = lambda: print('ar={:012o} mq={:012o} mb={:012o}'.format(self.ar, self.mq, self.mb), file=tracer)
+        print('===========', pulse, '===========', file=tracer)
+        traceregs()
         until_any, until_all, ignore = set(until_any), set(until_all), set(ignore)
 
         self.e.clear_pulses()
         self.pulses = []
 
+        print('Initial pulse', file=tracer)
         self.e.pulse(pulse)
         self.pulses.append([pulse])
-        print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses)
+        traceregs()
+        print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses, file=tracer)
 
         if steps is not None:
             np = set(self.e.nextpulses)
             i = 1
             while np:
+                print('Cycle', i, file=tracer)
                 self.pulseCycle()
-                print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses)
+                traceregs()
+                print(' ', self.a.nnextpulses, self.a.ncurpulses, self.e.nextpulses, file=tracer)
 
                 for b in ignore:
                     self.e.dequeue_pulse(b)
@@ -123,8 +155,8 @@ class EmuTest(unittest.TestCase):
                 i += 1
                 if i == steps:
                     raise RuntimeError('Step limit exceeded')
-        print('{}/{} steps.'.format(i, steps))
-        print()
+        print('{}/{} steps.'.format(i, steps), file=tracer)
+        return tracer.getvalue()
     
     def countPulse(self, name):
         return sum( (1 if p == name else 0) for ps in pulses for p in ps )
@@ -144,9 +176,9 @@ _2xxsh = (0b010100<<12)
 regerr = lambda reg, xp, act:\
         '{} not correct, expected {:09x} actual {:09x}'.format(
                 reg, xp, act)
-regerro = lambda reg, xp, act:\
+regerro = lambda reg, xp, act, trace=None:\
         '{} not correct, expected {:012o} actual {:012o}'.format(
-                 reg, xp, act)
+                reg, xp, act) + (' ; trace:\n'+trace if trace is not None else '')
 class ShiftTests(EmuTest):
     OPS =  {  'ASHR': lambda a, m: (a[0]  + a[0:35]        , m                            ),
               'ASHL': lambda a, m: (a[0]  + a[2:36] + '0'  , m                            ),
@@ -253,88 +285,86 @@ class ShiftTests(EmuTest):
 
 woct = lambda x: '{:012o}'.format(x)
 class HWTTests(EmuTest):
-	OPS = {
-			'HLL':  lambda dl, dr, sl, sr: sl+dr,
-			'HLR':  lambda dl, dr, sl, sr: dl+sl,
-			'HRL':  lambda dl, dr, sl, sr: sr+dr,
-			'HRR':  lambda dl, dr, sl, sr: dl+sr,
-			'HLLZ': lambda dl, dr, sl, sr: sl+'0'*18,
-			'HLRZ': lambda dl, dr, sl, sr: '0'*18+sl,
-			'HRLZ': lambda dl, dr, sl, sr: sr+'0'*18,
-			'HRRZ': lambda dl, dr, sl, sr: '0'*18+sr,
-			'HLLO': lambda dl, dr, sl, sr: sl+'1'*18,
-			'HLRO': lambda dl, dr, sl, sr: '1'*18+sl,
-			'HRLO': lambda dl, dr, sl, sr: sr+'1'*18,
-			'HRRO': lambda dl, dr, sl, sr: '1'*18+sr,
-			'HLLE': lambda dl, dr, sl, sr: sl+sl[0]*18,
-			'HLRE': lambda dl, dr, sl, sr: sr[0]*18+sl,
-			'HRLE': lambda dl, dr, sl, sr: sr+sl[0]*18,
-			'HRRE': lambda dl, dr, sl, sr: sr[0]*18+sr
-			}
+    OPS = {
+            'HLL':  lambda dl, dr, sl, sr: sl+dr,
+            'HLR':  lambda dl, dr, sl, sr: dl+sl,
+            'HRL':  lambda dl, dr, sl, sr: sr+dr,
+            'HRR':  lambda dl, dr, sl, sr: dl+sr,
+            'HLLZ': lambda dl, dr, sl, sr: sl+'0'*18,
+            'HLRZ': lambda dl, dr, sl, sr: '0'*18+sl,
+            'HRLZ': lambda dl, dr, sl, sr: sr+'0'*18,
+            'HRRZ': lambda dl, dr, sl, sr: '0'*18+sr,
+            'HLLO': lambda dl, dr, sl, sr: sl+'1'*18,
+            'HLRO': lambda dl, dr, sl, sr: '1'*18+sl,
+            'HRLO': lambda dl, dr, sl, sr: sr+'1'*18,
+            'HRRO': lambda dl, dr, sl, sr: '1'*18+sr,
+            'HLLE': lambda dl, dr, sl, sr: sl+sl[0]*18,
+            'HLRE': lambda dl, dr, sl, sr: sr[0]*18+sl,
+            'HRLE': lambda dl, dr, sl, sr: sr+sl[0]*18,
+            'HRRE': lambda dl, dr, sl, sr: sr[0]*18+sr
+            }
 
-	def _hwt_sim(self, ins, w, xx, y, zz, ar, mb):
-		ar, mb = '{:036b}'.format(ar), '{:036b}'.format(mb)
+    def _hwt_sim(self, ins, w, xx, y, zz, ar, mb):
+        ar, mb = '{:036b}'.format(ar), '{:036b}'.format(mb)
 
-		if zz == 0:
-			dst,src = 'ar', mb
-			dstv = ar
-		elif zz == 1: # I
-			dst,src = 'ar', mb
-			dstv = ar
-		elif zz == 2: # M
-			dst,src = 'mb', ar
-			dstv = mb
-		else:# zz == 3: # S
-			dst,src = 'mb', mb
-			dstv = mb
+        if zz == 0:
+            dst,src = 'ar', mb
+            dstv = ar
+        elif zz == 1: # I
+            dst,src = 'ar', mb
+            dstv = ar
+        elif zz == 2: # M
+            dst,src = 'mb', ar
+            dstv = mb
+        else:# zz == 3: # S
+            dst,src = 'mb', mb
+            dstv = mb
 
-		srcl, srcr = src[:18], src[18:]
-		dstvl, dstvr = dstv[:18], dstv[18:]
+        srcl, srcr = src[:18], src[18:]
+        dstvl, dstvr = dstv[:18], dstv[18:]
 
-		res = HWTTests.OPS[ins](dstvl, dstvr, srcl, srcr)
+        res = HWTTests.OPS[ins](dstvl, dstvr, srcl, srcr)
 
-		if dst == 'ar':
-#			if ins[1:3] in ('RL', 'LR'):
-#				print('SWAP')
-#				return int(res, 2), int(mb[0:18]+mb[18:], 2)
-#			else:
-			return int(res, 2), int(mb, 2)
-		elif dst == 'mb':
-			return int(ar, 2), int(res, 2)
+        if dst == 'ar':
+            return int(res, 2), int(mb, 2)
+        elif dst == 'mb':
+            return int(ar, 2), int(res, 2)
 
-	def test_hwt(self):
-		for w in [0, 1]:
-			for xx in [0, 1, 2, 3]:
-				for y in [0, 1]:
-					for zz in [0, 1, 2, 3]:
-						for ar, mb in [(0o111111222222, 0o333333444444),
-								(0o000000777777, 0o000000000000), (0o000000000000, 0o000000777777),
-								(0o777777000000, 0o000000000000), (0o000000000000, 0o777777000000),
-								(0o123456712345, 0o671234567123)]:
-							ins = 'H' +\
-								  {(0,0):'LL', (0,1):'RL', (1,0):'RR', (1,1):'LR'}[(w,y)] +\
-								  {0:'', 1:'Z', 2:'O', 3:'E'}[xx]
-							insv = ins + {0:'', 1:'I', 2:'M', 3:'S'}[zz]
-							with self.subTest(ins=insv, w=w, xx=xx, y=y, zz=zz, ar=woct(ar), mb=woct(mb)):
-								self.e.pulse('mr_clr')
-								self.a.ir = 0b101<<15 | w<<14 | xx<<12 | y<<11 | zz<<9
-								self.a.ar, self.a.mb = ar, mb
-								self.a.mq = 0
-								self.e.decode_ir()
-								self.assertEqual(self.a.inst>>6, 0b101, 'instruction not decoded correctly')
+    def test_hwt(self):
+        for w in [0, 1]:
+            for xx in [0, 1, 2, 3]:
+                for y in [0, 1]:
+                    for zz in [0, 1, 2, 3]:
+                        for ar, mb in [(0o111111222222, 0o333333444444),
+                                (0o000000777777, 0o000000000000), (0o000000000000, 0o000000777777),
+                                (0o777777000000, 0o000000000000), (0o000000000000, 0o777777000000),
+                                (0o123456712345, 0o671234567123)]:
+                            ins = 'H' +\
+                                  {(0,0):'LL', (0,1):'RL', (1,0):'RR', (1,1):'LR'}[(w,y)] +\
+                                  {0:'', 1:'Z', 2:'O', 3:'E'}[xx]
+                            insv = ins + {0:'', 1:'I', 2:'M', 3:'S'}[zz]
+                            with self.subTest(ins=insv, w=w, xx=xx, y=y, zz=zz, ar=woct(ar), mb=woct(mb)):
+                                self.e.pulse('mr_clr')
+                                self.a.ir = 0b101<<15 | w<<14 | xx<<12 | y<<11 | zz<<9
+                                self.a.ar, self.a.mb = ar, mb
+                                self.a.mq = 0
+                                self.e.decode_ir()
+                                self.assertEqual(self.a.inst>>6, 0b101, 'instruction not decoded correctly')
 
-								self.pulseRun('ft6a', until_any=['et10'], steps=32)
+                                trace = self.pulseRun('ft6a', until_any=['et10'], steps=32)
 
-								ear, emb = self._hwt_sim(ins, w, xx, y, zz, ar, mb)
-								aar, amb = self.a.ar.value, self.a.mb.value
-								# FIXME: This may be too relaxed, see handbook p.27 which says the source remains
-								# untouched except in mode 11. Conversely, the schematics clearly specify that MQ is
-								# clobbered in HWT SWAP instructions.
-								if zz == 0 or zz == 1:
-									self.assertEqual(aar, ear, regerro('AR', ear, aar))
-								if zz == 2 or zz == 3:
-									self.assertEqual(amb, emb, regerro('MB', emb, amb))
-							break #FIXME
+                                ear, emb = self._hwt_sim(ins, w, xx, y, zz, ar, mb)
+                                aar, amb = self.a.ar.value, self.a.mb.value
+                                # FIXME: This may be too relaxed, see handbook p.27 which says the source remains
+                                # untouched except in mode 11. Conversely, the schematics clearly specify that MQ is
+                                # clobbered in HWT SWAP instructions.
+                                if zz == 0 or zz == 1:
+                                    self.assertEqual(aar, ear, regerro('AR', ear, aar, trace))
+                                if zz == 2 or zz == 3:
+                                    self.assertEqual(amb, emb, regerro('MB', emb, amb, trace))
+                            break #FIXME
+
+
 
 if __name__ == '__main__':
     unittest.main()
