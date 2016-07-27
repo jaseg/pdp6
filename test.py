@@ -111,9 +111,18 @@ class EmuTest(unittest.TestCase):
     def mb_set(self, val):
         self.a.mb = val
 
+    def allflags(self, io):
+        pprint(self.a._flags1.value, io)
+        pprint(self.a._flags2.value, io)
+        pprint(self.a._flags3.value, io)
+        pprint(self.a._flags4.value, io)
+        pprint(self.a._flags5.value, io)
+        pprint(self.a._flags6.value, io)
+
     def pulseRun(self, pulse, until_any=[], until_all=[], steps=None, ignore=[]):
         tracer = io.StringIO()
-        traceregs = lambda: print('ar={:012o} mq={:012o} mb={:012o}'.format(self.ar, self.mq, self.mb), file=tracer)
+        traceregs = lambda: print('ar={:012o} mq={:012o} mb={:012o}\nflags: '.format(self.ar, self.mq, self.mb,
+            self.allflags(tracer)), file=tracer)
         print('===========', pulse, '===========', file=tracer)
         traceregs()
         until_any, until_all, ignore = set(until_any), set(until_all), set(ignore)
